@@ -1,0 +1,45 @@
+project_name: administration-plus
+
+# Connexion à la base de production Administration+ (PostgreSQL, schéma Prisma).
+# Identifiants injectés au runtime via l'environnement (idéalement un utilisateur EN LECTURE
+# SEULE sur un réplica). Deux façons de les fournir sur l'app Scalingo nao :
+#   - une seule connection string : NAO_DB_URL=postgres://user:pass@host:port/dbname
+#     (bin/web.sh la décompose automatiquement dans les variables ci-dessous), OU
+#   - les variables séparées : NAO_DB_HOST / NAO_DB_PORT / NAO_DB_NAME / NAO_DB_USER / NAO_DB_PASSWORD
+# Syntaxe de résolution des secrets nao : {{ env('NOM_VARIABLE') }}
+databases:
+  - name: aplus-postgres
+    type: postgres
+    host: "{{ env('NAO_DB_HOST') }}"
+    port: "{{ env('NAO_DB_PORT') }}"
+    database: "{{ env('NAO_DB_NAME') }}"
+    user: "{{ env('NAO_DB_USER') }}"
+    password: "{{ env('NAO_DB_PASSWORD') }}"
+    schema_name: public
+
+    # Templates de métadonnées générés par table (colonnes, aperçu, profilage statistique).
+    templates:
+      - columns
+      - preview
+      - profiling
+    profiling:
+      refresh_policy: interval
+      interval_days: 7
+
+    # On exclut les tables techniques (auth, système) et les tables de jointure Prisma (_*)
+    # pour concentrer l'agent sur le modèle métier.
+    exclude:
+      - "public._*"           # tables de liaison Prisma + _prisma_migrations
+      - "public.Account"      # authentification (better-auth)
+      - "public.Session"
+      - "public.Verification"
+      - "public.TwoFactor"
+      - "public.MaintenanceMode"
+      - "public.SiteBanner"
+      - "public.NotificationView"
+
+# Aucun dépôt de code lié pour l'instant (ajouter ici le repo source A+ si besoin).
+repos: []
+
+# Le fournisseur LLM et sa clé sont configurés via l'interface de Nao (stockés en base).
+llm: null
