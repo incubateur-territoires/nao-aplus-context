@@ -39,7 +39,11 @@ databases:
       - "public.NotificationView"
 
 # Aucun dépôt de code lié pour l'instant (ajouter ici le repo source A+ si besoin).
-repos: []
+repos:
+  - name: aplus-product
+    url: https://gitlab.com/incubateur-territoires/startups/administration-plus/administration-plus
+    branch: main
+  
 
 # Le fournisseur LLM et sa clé sont configurés via l'interface de Nao (stockés en base).
 llm: null
