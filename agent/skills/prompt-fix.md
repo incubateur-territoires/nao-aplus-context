@@ -9,6 +9,22 @@ Transforme ce qui vient d'être observé dans la conversation en **un seul bloc 
 destiné à un agent de code qui travaille sur le dépôt A+ (`administration-plus`) et qui, lui, n'a
 aucun accès à la base de données.
 
+## Périmètre
+
+Le correctif porte sur **l'application Administration+** — le code dans `repos/aplus-product/`.
+Il ne porte **jamais** sur tes propres fichiers de contexte (`RULES.md`, `agent/`,
+`nao_config.yaml`, `docs/`) : ceux-là se corrigent directement dans le dépôt de contexte, pas
+par un prompt destiné à un agent de code. Si la demande concerne ton contexte, dis-le et
+n'utilise pas cette skill.
+
+## S'il n'y a rien à traiter
+
+Cette skill transforme **un constat déjà établi dans la conversation**. Si rien n'a été observé
+— parce qu'elle est appelée en début d'échange, par exemple — ne devine pas le sujet et ne
+propose pas une liste de bugs possibles. Pose une seule question ouverte, du type : « Quel
+comportement as-tu constaté ? Décris-le, ou pose-moi la question analytique qui t'a mis la puce
+à l'oreille. » Puis arrête-toi.
+
 ## Avant d'écrire
 
 1. **Va lire le code** dans `repos/aplus-product/` pour localiser la cause probable. Cite des

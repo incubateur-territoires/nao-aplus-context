@@ -64,14 +64,10 @@ repos:
       - "**/*.ico"
       - "**/*.woff*"
 
-# Pages Notion de l'espace « Startups / Administration + », exportées en markdown dans
-# docs/notion/ par `nao sync -p notion` (voir CLAUDE.md). NOTION_API_KEY = clé d'une
-# intégration interne Notion à laquelle ces pages ont été partagées.
-notion:
-  api_key: {{ env('NOTION_API_KEY') }}
-  pages:
-    - 1a6744bf03dd8098b460c0a00fb19fef   # Documentation produit
-    - 1a6744bf03dd806e825cc3e9b0cc233d   # Stratégie
+# Pas de bloc `notion:` ici : l'export par lot (`nao sync -p notion`) demande un jeton
+# d'intégration au niveau du workspace, que l'équipe n'a pas le droit de créer. Notion passe
+# par le serveur MCP déclaré dans agent/mcps/mcp.json — lecture ET écriture, en direct,
+# chaque personne s'authentifiant avec son propre compte.
 
 # Le fournisseur LLM et sa clé sont configurés via l'interface de Nao (stockés en base).
 llm: null

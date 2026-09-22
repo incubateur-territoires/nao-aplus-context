@@ -24,9 +24,12 @@ dépôt au démarrage via `NAO_CONTEXT_GIT_URL` et charge `nao_config.yaml` + `R
 - `agent/skills/produit.md`, `agent/skills/tech.md` — les deux registres de réponse,
   déclenchables par `/produit` et `/tech` dans le chat (ou par une formulation qui correspond à
   leur `description`).
-- `docs/notion/` — export markdown des pages Notion listées dans `nao_config.yaml`
-  (`Startups / Administration +` : Documentation produit, Stratégie). **Généré par `nao sync`,
-  ne pas éditer à la main.** Snapshot committé, comme le code A+.
+- `agent/mcps/mcp.json` — serveur MCP Notion (`https://mcp.notion.com/mcp`). Donne à l'agent un
+  accès **direct** à Notion, en lecture et en écriture (lire un ticket, en créer un, commenter).
+  Aucun secret dans le fichier : chaque personne s'authentifie en OAuth à sa première
+  utilisation, via un bouton « Connect » affiché sous la conversation, et ne voit que ce à quoi
+  elle a déjà accès. Les outils activés se pilotent dans *Settings → Agent → MCP servers*,
+  groupés en Read-only / Write / Delete — **garder `Delete` désactivé**.
 - `repos/aplus-product/` — copie du code source d'A+ (GitLab `incubateur-territoires/startups/
   administration-plus/administration-plus`, branche `main`) filtrée par les `include`/`exclude`
   de `nao_config.yaml` : `prisma/` (schéma + migrations), `src/`, `docs/`, `specs/`. **Généré par
@@ -60,12 +63,11 @@ A+ est une messagerie sécurisée qui débloque les démarches administratives d
   ```
   (les variables `NAO_DB_*` factices servent juste à faire passer la validation de la config,
   la BDD n'est pas contactée.)
-- **Rafraîchir les pages Notion** (`docs/notion/`) : même commande avec `-p notion` et
-  `-e NOTION_API_KEY=secret_…` (clé d'une intégration interne Notion, à créer sur
-  https://www.notion.so/profile/integrations, puis partager chaque page listée avec elle via
-  « ⋯ → Connexions »). Sans la clé, `nao sync` ignore Notion sans erreur.
-  **Attention** : le dépôt est public, tout ce qui est exporté dans `docs/notion/` le devient
-  aussi — ne lister que des pages sans donnée personnelle ni information confidentielle.
+- **Notion** : rien à rafraîchir, l'accès est direct via le serveur MCP (`agent/mcps/mcp.json`).
+  Chaque personne clique « Connect » une fois, l'autorisation est mémorisée pour son compte.
+  On a écarté l'export par lot (`nao sync -p notion`) pour deux raisons : il exige un jeton
+  d'intégration au niveau du workspace que l'équipe n'a pas le droit de créer, et il aurait
+  rendu public dans ce dépôt tout ce qu'il exporte.
 
 ## Conventions d'analyse
 Français, concis, agrégats only sur les données personnelles. Voir `RULES.md` pour le détail
