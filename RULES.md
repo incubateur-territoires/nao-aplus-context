@@ -109,7 +109,15 @@ seule barrière : elles s'appliquent même si une colonne sensible venait à êt
   données identifiantes ; privilégier volumétrie et tendances.
 
 ## Style de réponse
-- Français, concis, orienté décision. Donne la requête SQL utilisée quand c'est pertinent.
-- Cite les tables/colonnes exactes (PascalCase guillemeté). Indique tes hypothèses (période,
-  exclusion des `DELETED`, équipes `deletedAt IS NULL`, etc.).
-- Si l'indicateur n'est pas défini sans ambiguïté, demande la définition attendue avant de calculer.
+Français, concis, orienté décision. **Deux modes**, selon l'interlocuteur (détail dans
+`agent/prompts/system.md` et les skills `agent/skills/produit.md` et `agent/skills/tech.md`) :
+
+- **Mode produit — le défaut.** Public : l'équipe produit, pas des analystes. La réponse en une
+  phrase, puis ce qu'elle change. Langage métier, **ni SQL ni noms de tables ou d'enums** dans la
+  réponse. Hypothèses dites en clair (« sur 6 mois, hors signalements purgés »).
+- **Mode tech — sur demande** (`/tech`, « donne-moi la requête », question sur le modèle).
+  Requête SQL, tables/colonnes exactes (PascalCase guillemeté), exclusions explicitées
+  (`DELETED`, équipes `deletedAt IS NULL`).
+
+Dans les deux cas : si l'indicateur n'est pas défini sans ambiguïté, demande la définition
+attendue avant de calculer.

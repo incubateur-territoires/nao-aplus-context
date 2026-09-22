@@ -18,6 +18,12 @@ dépôt au démarrage via `NAO_CONTEXT_GIT_URL` et charge `nao_config.yaml` + `R
   citoyen sensibles à ne jamais exposer).
 - `public-schema.sql` — dump `pg_dump` (schéma seul, sans données) servant de référence pour le
   modèle. Snapshot : à régénérer si le schéma A+ évolue (`pg_dump --schema-only`).
+- `agent/prompts/system.md` — ton par défaut de l'agent sur toutes les surfaces (web, Slack…).
+  Étend le prompt nao via `{{ nao_prompt }}` au lieu de le remplacer. Relu à chaque message :
+  éditer et pousser suffit, pas besoin de redémarrer l'instance.
+- `agent/skills/produit.md`, `agent/skills/tech.md` — les deux registres de réponse,
+  déclenchables par `/produit` et `/tech` dans le chat (ou par une formulation qui correspond à
+  leur `description`).
 - `docs/notion/` — export markdown des pages Notion listées dans `nao_config.yaml`
   (`Startups / Administration +` : Documentation produit, Stratégie). **Généré par `nao sync`,
   ne pas éditer à la main.** Snapshot committé, comme le code A+.
