@@ -40,11 +40,27 @@ tentatives de reproduction.
 | `Détails du bug` | Pour un bug seulement : étapes de reproduction, comportement observé, comportement attendu. |
 | `Utilisateur` | Qui est touché : `Aidant`, `Opérateur`, `Responsable d'équipe`, `Admin`, `Superviseur`, `Citoyen`, `Aidant travailleur social`, `Tous les visiteurs`. Plusieurs valeurs possibles. |
 | `Initiative` | Seulement si le rattachement est évident, parmi les cinq existantes (dont « Améliorer les statistiques des opérateurs »). Sinon laisse vide. |
-| `Auteur du ticket` | La personne qui demande, si son nom correspond à une option (`Charles LP`, `Manon`, `Raph`, `Ana`, `Emeline`, `Charles d'O`). Sinon laisse vide. |
+| `Auteur du ticket` | La personne qui demande — voir la correspondance ci-dessous. Dans le doute, **laisse vide**. |
 | `Priorité` | **Laisse vide** sauf si la personne la donne. Ce n'est pas à toi d'arbitrer. |
 
 Ne touche pas à `Nb retours restant` (formule), ni à `Feedbacks`, `Suivi auto`, `Lien maquette`,
 `Fichiers et médias`.
+
+### Auteur du ticket — correspondance
+
+Il y a **deux Charles** dans la liste, et ce sont deux personnes différentes. Ne choisis jamais
+sur la seule base du prénom.
+
+| La personne qui te parle | Valeur à mettre |
+|---|---|
+| `charles.doiron`, Charles Doiron, Charles d'Oiron | **`Charles d'O`** |
+| Un autre Charles, ou un Charles que tu n'identifies pas formellement | **laisse vide** |
+| Manon, Raph, Ana, Emeline | l'option du même prénom |
+| Toute autre personne | **laisse vide** |
+
+`Charles LP` n'est jamais la valeur par défaut. Si tu hésites entre deux options, la bonne
+réponse est de laisser le champ vide : une personne le corrigera en deux secondes, alors qu'un
+mauvais auteur passe inaperçu et fausse le suivi.
 
 ## Contenu de la description
 
