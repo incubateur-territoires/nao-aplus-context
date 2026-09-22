@@ -18,6 +18,9 @@ dépôt au démarrage via `NAO_CONTEXT_GIT_URL` et charge `nao_config.yaml` + `R
   citoyen sensibles à ne jamais exposer).
 - `public-schema.sql` — dump `pg_dump` (schéma seul, sans données) servant de référence pour le
   modèle. Snapshot : à régénérer si le schéma A+ évolue (`pg_dump --schema-only`).
+- `docs/notion/` — export markdown des pages Notion listées dans `nao_config.yaml`
+  (`Startups / Administration +` : Documentation produit, Stratégie). **Généré par `nao sync`,
+  ne pas éditer à la main.** Snapshot committé, comme le code A+.
 - `repos/aplus-product/` — copie du code source d'A+ (GitLab `incubateur-territoires/startups/
   administration-plus/administration-plus`, branche `main`) filtrée par les `include`/`exclude`
   de `nao_config.yaml` : `prisma/` (schéma + migrations), `src/`, `docs/`, `specs/`. **Généré par
@@ -51,6 +54,12 @@ A+ est une messagerie sécurisée qui débloque les démarches administratives d
   ```
   (les variables `NAO_DB_*` factices servent juste à faire passer la validation de la config,
   la BDD n'est pas contactée.)
+- **Rafraîchir les pages Notion** (`docs/notion/`) : même commande avec `-p notion` et
+  `-e NOTION_API_KEY=secret_…` (clé d'une intégration interne Notion, à créer sur
+  https://www.notion.so/profile/integrations, puis partager chaque page listée avec elle via
+  « ⋯ → Connexions »). Sans la clé, `nao sync` ignore Notion sans erreur.
+  **Attention** : le dépôt est public, tout ce qui est exporté dans `docs/notion/` le devient
+  aussi — ne lister que des pages sans donnée personnelle ni information confidentielle.
 
 ## Conventions d'analyse
 Français, concis, agrégats only sur les données personnelles. Voir `RULES.md` pour le détail
