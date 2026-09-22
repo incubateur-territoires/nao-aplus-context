@@ -17,14 +17,19 @@ databases:
     password: "{{ env('NAO_DB_PASSWORD') }}"
     schema_name: public
 
-    # Templates de métadonnées générés par table (colonnes, aperçu, profilage statistique).
+    # Templates de métadonnées générés par table, écrits dans databases/ et committés ici.
+    #
+    # ⚠️ CE DÉPÔT EST PUBLIC. Ne garder que des templates qui décrivent la *structure*, jamais
+    # le *contenu*. `columns` (noms, types, nullabilité) est sans risque.
+    #
+    # `preview` et `profiling` sont volontairement absents :
+    #   - `preview` écrit dix vraies lignes par table ;
+    #   - `profiling` écrit les valeurs les plus fréquentes de chaque colonne — sur une colonne
+    #     unique comme User.email, cela revient à publier des adresses réelles.
+    # Les réactiver publierait des données de production sur github.com. Prérequis avant
+    # d'y revenir : qu'`exclude_columns` couvre toute colonne identifiante et tout texte libre.
     templates:
       - columns
-      - preview
-      - profiling
-    profiling:
-      refresh_policy: interval
-      interval_days: 7
 
     # On exclut les tables techniques (auth, système) et les tables de jointure Prisma (_*)
     # pour concentrer l'agent sur le modèle métier.

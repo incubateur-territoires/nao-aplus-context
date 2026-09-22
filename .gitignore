@@ -1,0 +1,10 @@
+# Ce dépôt est public : les métadonnées de base qui contiennent des données réelles
+# ne doivent jamais y être commitées, même si quelqu'un réactive le template dans
+# nao_config.yaml. Voir le commentaire du bloc `templates`.
+databases/**/preview.md
+databases/**/profiling.md
+databases/**/ai_summary.md
+
+# Secrets locaux éventuels
+.env
+*.env
