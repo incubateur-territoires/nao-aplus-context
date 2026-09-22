@@ -21,12 +21,6 @@ dépôt au démarrage via `NAO_CONTEXT_GIT_URL` et charge `nao_config.yaml` + `R
 - `agent/prompts/system.md` — ton par défaut de l'agent sur toutes les surfaces (web, Slack…).
   Étend le prompt nao via `{{ nao_prompt }}` au lieu de le remplacer. Relu à chaque message :
   éditer et pousser suffit, pas besoin de redémarrer l'instance.
-- `agent/mcps/mcp.json` — serveur MCP GitLab natif (`https://gitlab.com/api/v4/mcp`), pour que
-  l'agent puisse ouvrir des issues et des merge requests sur le dépôt A+. Pas de secret dans le
-  fichier : chaque utilisateur s'authentifie en OAuth à la première utilisation. **Prérequis** :
-  autoriser l'accès au serveur MCP sur le groupe `incubateur-territoires` (réglage GitLab.com,
-  propriétaire du groupe). Les outils activés se pilotent dans *Settings → Agent → MCP servers*
-  — garder au minimum les groupes `Delete` désactivés.
 - `agent/skills/produit.md`, `agent/skills/tech.md` — les deux registres de réponse,
   déclenchables par `/produit` et `/tech` dans le chat (ou par une formulation qui correspond à
   leur `description`).
