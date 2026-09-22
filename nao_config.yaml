@@ -38,12 +38,31 @@ databases:
       - "public.SiteBanner"
       - "public.NotificationView"
 
-# Aucun dépôt de code lié pour l'instant (ajouter ici le repo source A+ si besoin).
+# Code source d'A+ (Next.js + Prisma), synchronisé dans repos/aplus-product/ par
+# `nao sync -p repositories:aplus-product` (voir CLAUDE.md). On ne garde que le code
+# lisible : modèle Prisma + migrations, code applicatif, docs/ADR, specs.
 repos:
   - name: aplus-product
     url: https://gitlab.com/incubateur-territoires/startups/administration-plus/administration-plus
     branch: main
-  
+    include:
+      - "README.md"
+      - "CLAUDE.md"
+      - "package.json"
+      - "cron.json"
+      - "prisma/**"
+      - "docs/**"
+      - "specs/**"
+      - "src/**"
+    exclude:
+      - "src/generated/**"
+      - "src/dsfr-bootstrap/**"
+      - "src/**/*.json"       # animation Lottie de 1,3 Mo
+      - "**/*.png"
+      - "**/*.jpg"
+      - "**/*.svg"
+      - "**/*.ico"
+      - "**/*.woff*"
 
 # Le fournisseur LLM et sa clé sont configurés via l'interface de Nao (stockés en base).
 llm: null

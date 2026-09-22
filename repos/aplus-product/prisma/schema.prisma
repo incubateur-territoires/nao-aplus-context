@@ -1,0 +1,547 @@
+generator client {
+  provider        = "prisma-client"
+  output          = "../src/generated/prisma"
+  previewFeatures = ["postgresqlExtensions"]
+}
+
+datasource db {
+  provider   = "postgresql"
+  extensions = [unaccent]
+}
+
+model Report {
+  id                         String                @id @default(uuid())
+  createdAt                  DateTime              @default(now())
+  updatedAt                  DateTime              @updatedAt
+  area                       Area                  @relation(fields: [areaId], references: [id])
+  areaId                     String
+  subject                    String
+  description                String
+  files                      File[]
+  caf                        String?
+  nir                        String?
+  nif                        String?
+  firstName                  String
+  lastName                   String
+  birthDate                  String
+  phone                      String?
+  maritalName                String?
+  citizenPermissionConfirmed Boolean
+  applicantTeam              Team                  @relation("ReportToApplicantTeam", fields: [applicantTeamId], references: [id]) // Applicant Team
+  applicantTeamId            String
+  requestedTeams             Team[]                @relation("ReportToRequestedTeams") // Requested Teams
+  organization               Organization?         @relation(fields: [organizationId], references: [id]) // Organization
+  organizationId             String?
+  status                     ReportStatus          @default(PENDING_ASSIGNMENT)
+  author                     User                  @relation("ReportAuthor", fields: [authorId], references: [id])
+  authorId                   String
+  coAuthors                  User[]                @relation("ReportCoAuthors")
+  answers                    Answer[]
+  statusHistory              ReportStatusHistory[]
+  user                       User?                 @relation(fields: [userId], references: [id])
+  userId                     String?
+  lastAnswerAt               DateTime?
+  overdueAt                  DateTime?
+
+  @@index([authorId])
+  @@index([status])
+  @@index([lastAnswerAt(sort: Desc)])
+  @@index([overdueAt])
+  @@index([applicantTeamId]) // Filtre équipes des tableaux + CTE team_reports des stats
+}
+
+model Answer {
+  id                   String                @id @default(uuid())
+  files                File[]
+  authorId             String
+  author               User                  @relation(fields: [authorId], references: [id])
+  reportId             String
+  report               Report                @relation(fields: [reportId], references: [id])
+  statusHistory        ReportStatusHistory[]
+  content              String
+  createdAt            DateTime              @default(now())
+  updatedAt            DateTime              @updatedAt
+  isOperatorOnly       Boolean               @default(false)
+  isIrrelevant         Boolean               @default(false)
+  hasStandardProcedure Boolean               @default(false)
+  isMetadataOnly       Boolean               @default(false) // If true, the answer is only a metadata answer like a summary to invited groups or invited colleagues
+  views                AnswerView[]
+
+  @@index([reportId])
+  @@index([reportId, createdAt(sort: Desc)]) // Optimise le tri par dernier message (LEFT JOIN LATERAL)
+  @@index([authorId])
+  @@index([reportId, isMetadataOnly])
+}
+
+enum StandardProcedure {
+  NOT_CONCERNED
+  HAS_STANDARD_PROCEDURE
+  NO_STANDARD_PROCEDURE
+}
+
+enum ReportStatus {
+  PENDING_ASSIGNMENT
+  IN_TREATMENT
+  COMPLETED
+  CLOSED
+  DELETED
+}
+
+model File {
+  id           String   @id
+  name         String
+  type         String
+  size         Int
+  lastModified DateTime
+  reportId     String
+  report       Report   @relation(fields: [reportId], references: [id])
+  answers      Answer[]
+
+  @@index([reportId])
+}
+
+model User {
+  id                        String                       @id @default(uuid())
+  createdAt                 DateTime                     @default(now())
+  updatedAt                 DateTime                     @updatedAt
+  email                     String                       @unique
+  firstName                 String
+  lastName                  String
+  phone                     String?
+  profession                String?
+  cguAcceptedAt             DateTime?
+  newsLetterAcceptedAt      DateTime?
+  authoredReports           Report[]                     @relation("ReportAuthor")
+  coAuthoredReports         Report[]                     @relation("ReportCoAuthors")
+  teams                     Team[]
+  role                      String                       @default("user")
+  banned                    Boolean                      @default(false)
+  banReason                 String?
+  banExpires                DateTime?
+  answer                    Answer[]
+  reportStatusHistory       ReportStatusHistory[]
+  name                      String
+  emailVerified             Boolean                      @default(false)
+  sessions                  Session[]
+  accounts                  Account[]
+  reports                   Report[]
+  managedTeams              Team[]                       @relation("TeamManager")
+  answerViews               AnswerView[]
+  notificationViews         NotificationView[]
+  isInactive                DateTime?
+  deletedAt                 DateTime?
+  deactivatedTeamSnapshot   DeactivatedUserTeamSnapshot?
+  lastActivityAt            DateTime?
+  inactivityWarningsSentAt  DateTime[]                   @default([])
+  notificationFrequency     NotificationFrequency        @default(EACH_SOLICITATION)
+  lastDigestSentAt          DateTime?
+  internalSupportComment    String?
+  supervisor                Supervisor?
+  twoFactorEnabled          Boolean?                     @default(false)
+  twoFactor                 TwoFactor?
+  notificationsViewedBefore DateTime?                    @default(now())
+  goldenDatasetAnnotations  GoldenDatasetAnnotation[]
+
+  @@index([notificationFrequency, isInactive])
+  @@map("User")
+}
+
+model TwoFactor {
+  id          String  @id @default(uuid())
+  secret      String
+  backupCodes String
+  userId      String  @unique
+  verified    Boolean @default(true)
+  // Verrouillage anti-brute-force 2FA géré par better-auth ≥ 1.6.23
+  // (NIST SP 800-63B) : échecs consécutifs et fin de blocage éventuelle.
+  failedVerificationCount Int       @default(0)
+  lockedUntil             DateTime?
+  user        User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model PendingUser {
+  id                String   @id @default(uuid())
+  email             String   @unique
+  firstName         String?
+  lastName          String?
+  verificationToken String   @unique
+  tokenExpiresAt    DateTime
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  teams             Team[]   @relation("PendingUsersTeams")
+  managedTeams      Team[]   @relation("PendingManagersTeams")
+
+  @@map("PendingUser")
+}
+
+enum NotificationFrequency {
+  EACH_SOLICITATION
+  TWICE_DAILY
+  ONCE_DAILY
+  NONE
+}
+
+enum NotificationType {
+  ANSWER
+  STATUS_CHANGE
+  REPORT
+}
+
+enum OrganizationRole {
+  OPERATOR
+  HELPER
+}
+
+enum TeamType {
+  OPERATOR
+  FRANCE_SERVICE
+  HISTORICAL_SOCIAL_WORKER
+  TZNR
+  OTHERS_HELPERS
+}
+
+model Organization {
+  id                    String              @id @default(uuid())
+  id_v1                 String              @unique // id_v1 is the id of the structure in the old database - i dont want to use it as in not slugify, but i want to keep it for the import because it differ for Pole emploi
+  createdAt             DateTime            @default(now())
+  updatedAt             DateTime            @updatedAt
+  additionalInformation String?
+  name                  String
+  shortName             String              @unique
+  reports               Report[]
+  teams                 Team[]
+  specificFields        TeamSpecificField[]
+  tags                  OrganizationTag[]
+  role                  OrganizationRole    @default(HELPER)
+  type                  TeamType            @default(OTHERS_HELPERS)
+  supervisors           Supervisor[]
+  pendingSupervisors    PendingSupervisor[]
+}
+
+model Area {
+  id                 String              @id @unique
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+  name               String              @unique
+  inseeCode          String              @unique
+  timezone           String              @default("Europe/Paris")
+  reports            Report[]
+  teams              Team[]
+  supervisors        Supervisor[]
+  pendingSupervisors PendingSupervisor[]
+}
+
+model Team {
+  id                          String                        @id @default(uuid())
+  email                       String?
+  description                 String?
+  registrationNumber          String?
+  createdAt                   DateTime                      @default(now())
+  updatedAt                   DateTime                      @updatedAt
+  name                        String
+  organization                Organization                  @relation(fields: [organizationId], references: [id])
+  organizationId              String
+  areas                       Area[]
+  users                       User[]
+  reports                     Report[]                      @relation("ReportToRequestedTeams")
+  applicantReports            Report[]                      @relation("ReportToApplicantTeam")
+  role                        OrganizationRole              @default(HELPER)
+  managers                    User[]                        @relation("TeamManager")
+  pendingManagers             PendingUser[]                 @relation("PendingManagersTeams")
+  pendingUsers                PendingUser[]                 @relation("PendingUsersTeams")
+  adminComment                String?
+  publicNote                  String?
+  internalSupportComment      String?
+  type                        TeamType                      @default(OTHERS_HELPERS)
+  acceptTypes                 TeamType[]                    @default([OPERATOR, FRANCE_SERVICE, HISTORICAL_SOCIAL_WORKER, TZNR, OTHERS_HELPERS])
+  deactivatedUserSnapshots    DeactivatedUserTeamSnapshot[] @relation("DeactivatedUserTeams")
+  deactivatedManagerSnapshots DeactivatedUserTeamSnapshot[] @relation("DeactivatedUserManagedTeams")
+  deletedAt                   DateTime?
+}
+
+model TeamSpecificField {
+  id            String         @id @default(uuid())
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  label         String
+  hintText      String?
+  name          String
+  errorMessage  String
+  organizations Organization[]
+}
+
+model OrganizationTag {
+  id            String         @id @default(uuid())
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  name          String         @unique
+  organizations Organization[]
+}
+
+model ReportStatusHistory {
+  id        String       @id @default(uuid())
+  createdAt DateTime     @default(now())
+  report    Report       @relation(fields: [reportId], references: [id])
+  reportId  String
+  status    ReportStatus
+  author    User?        @relation(fields: [authorId], references: [id])
+  authorId  String?
+  answer    Answer?      @relation(fields: [answerId], references: [id])
+  answerId  String?
+
+  @@index([reportId])
+  @@index([authorId])
+  @@index([status, reportId]) // CTE assignment/resolution des stats équipe (filtre par statut)
+}
+
+model Session {
+  id             String   @id
+  expiresAt      DateTime
+  token          String
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  ipAddress      String?
+  userAgent      String?
+  userId         String
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  impersonatedBy String?
+
+  @@unique([token])
+  @@map("Session")
+}
+
+model Account {
+  id                    String    @id
+  accountId             String
+  providerId            String
+  userId                String
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accessToken           String?
+  refreshToken          String?
+  idToken               String?
+  accessTokenExpiresAt  DateTime?
+  refreshTokenExpiresAt DateTime?
+  scope                 String?
+  password              String?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  @@unique([accountId, providerId])
+  @@map("Account")
+}
+
+model Verification {
+  id         String   @id
+  identifier String
+  value      String
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @default(now()) @updatedAt
+}
+
+model AnswerView {
+  id       String   @id @default(uuid())
+  userId   String
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  answerId String
+  answer   Answer   @relation(fields: [answerId], references: [id], onDelete: Cascade)
+  viewedAt DateTime @default(now())
+
+  @@unique([userId, answerId])
+  @@index([userId])
+  @@index([answerId])
+}
+
+model NotificationView {
+  id       String           @id @default(uuid())
+  userId   String
+  user     User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type     NotificationType
+  targetId String
+  viewedAt DateTime         @default(now())
+
+  @@unique([userId, type, targetId])
+  @@index([userId])
+  @@index([type, targetId])
+}
+
+model DeactivatedUserTeamSnapshot {
+  id           String   @id @default(uuid())
+  userId       String   @unique
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  teams        Team[]   @relation("DeactivatedUserTeams")
+  managedTeams Team[]   @relation("DeactivatedUserManagedTeams")
+  createdAt    DateTime @default(now())
+}
+
+model AnalyticsEvent {
+  id            String    @id @default(uuid())
+  createdAt     DateTime  @default(now())
+  occurredAt    DateTime?
+  eventName     String
+  eventCategory String
+  userId        String?
+  // Utilisateur ayant subi l'action (désactivation, impersonation...),
+  // extrait du metadata à l'écriture pour permettre une requête indexée.
+  targetUserId  String?
+  sessionId     String?
+  pageUrl       String?
+  pagePath      String?
+  referrer      String?
+  metadata      Json?
+  userAgent     String?
+  ipAddress     String?
+
+  @@index([eventName])
+  @@index([eventCategory])
+  @@index([userId])
+  @@index([targetUserId])
+  @@index([createdAt])
+  @@index([occurredAt])
+  @@index([pagePath])
+}
+
+model Supervisor {
+  id            String         @id @default(uuid())
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  userId        String         @unique
+  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  areas         Area[]
+  organizations Organization[]
+}
+
+model PendingSupervisor {
+  id            String         @id @default(uuid())
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  email         String         @unique
+  areas         Area[]
+  organizations Organization[]
+}
+
+model SiteBanner {
+  id                   String   @id @default(uuid())
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+  severity             String   @default("info")
+  content              String
+  isActive             Boolean  @default(false)
+  displayOnPublicPages Boolean  @default(false)
+  authorId             String
+}
+
+model MaintenanceMode {
+  id        String   @id @default(uuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  isActive  Boolean  @default(false)
+}
+
+// Corpus figé annoté à la main par plusieurs administrateurs, destiné à servir
+// de golden dataset pour de futures evals.
+//
+// `reportId` n'a volontairement PAS de clé étrangère vers Report : le cron
+// d'anonymisation supprime ou anonymise les signalements au bout de six mois,
+// et le corpus doit y survivre. L'identifiant ne sert qu'à la traçabilité.
+//
+// `subject` et `description` sont le texte DÉJÀ caviardé, recopié ici : les
+// quatre annotateurs doivent voir exactement le même texte, et l'échantillon
+// doit rester reproductible après anonymisation de la source.
+model GoldenDatasetItem {
+  id           String                    @id @default(uuid())
+  createdAt    DateTime                  @default(now())
+  reportId     String                    @unique
+  position     Int                       @unique
+  organization String
+  subject      String
+  description  String
+  annotations  GoldenDatasetAnnotation[]
+  predictions  GoldenDatasetPrediction[]
+
+  // Le label de référence retenu par l'équipe, un par axe. C'est le texte du
+  // tag qui est retenu, pas l'annotation qui le portait : plusieurs sources
+  // peuvent proposer le même label, et le corpus de référence n'a pas à
+  // dépendre de qui l'a écrit en premier.
+  goldenBlockageTag  String?
+  goldenProcedureTag String?
+}
+
+model GoldenDatasetAnnotation {
+  id           String            @id @default(uuid())
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+  itemId       String
+  item         GoldenDatasetItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  annotatorId  String
+  annotator    User              @relation(fields: [annotatorId], references: [id])
+  blockageTag  String?
+  procedureTag String?
+
+  @@unique([itemId, annotatorId])
+  @@index([annotatorId])
+}
+
+// Un passage d'un modèle sur le corpus. L'identité d'une série comparable est sa
+// recette (le modèle, la consigne, la température) et non l'exécution qui l'a
+// produite : relancer la même recette complète la série au lieu d'en créer une
+// jumelle qu'aucune contrainte ne distinguerait.
+//
+// `systemPrompt` et `userTemplate` sont stockés en entier plutôt que résumés en
+// numéro de version : personne n'a à penser à incrémenter quoi que ce soit, et
+// `promptHash` sans sa préimage ne sert à rien dans six mois.
+//
+// `promptHash` porte l'identité de la série parce qu'un hash ne dérive pas. Il
+// couvre la consigne système ET le gabarit utilisateur : changer la façon de
+// présenter l'item (retirer l'organisme, par exemple) est une autre condition
+// expérimentale et doit produire une autre série, pas se fondre dans la
+// précédente.
+//
+// Pas de `finishedAt` ni de `status` : la complétude se dérive du nombre de
+// prédictions rapporté au nombre d'items, comme la progression humaine se dérive
+// déjà dans `src/trpc/routers/golden-dataset.ts`. Un champ stocké pourrait
+// mentir. Conséquence assumée : rejouer deux fois la même recette pour mesurer
+// la variance est impossible, aucun usage ne le demande aujourd'hui et la sortie
+// s'est révélée stable à température 0,2 sur trois passages identiques.
+model GoldenDatasetRun {
+  id           String                    @id @default(uuid())
+  createdAt    DateTime                  @default(now())
+  model        String
+  systemPrompt String
+  userTemplate String
+  promptHash   String
+  temperature  Float
+  predictions  GoldenDatasetPrediction[]
+
+  @@unique([model, promptHash, temperature])
+}
+
+// La prédiction d'un modèle sur un item, à comparer aux annotations humaines.
+//
+// Pas de colonne `error` : un appel définitivement échoué n'écrit AUCUNE ligne.
+// L'absence de ligne est ce qui rend la reprise idempotente, l'item repasse au
+// tour suivant.
+//
+// `latencyMs`, `inputTokens` et `outputTokens` sont portés par la prédiction et
+// non par le run parce que la comparaison entre modèles porte sur des
+// distributions et non sur un total.
+//
+// `@@unique([runId, itemId])` est le contrat d'idempotence, calqué sur
+// `[itemId, annotatorId]` de la table humaine.
+model GoldenDatasetPrediction {
+  id           String            @id @default(uuid())
+  createdAt    DateTime          @default(now())
+  runId        String
+  run          GoldenDatasetRun  @relation(fields: [runId], references: [id], onDelete: Cascade)
+  itemId       String
+  item         GoldenDatasetItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  blockageTag  String?
+  procedureTag String?
+  rawOutput    String
+  latencyMs    Int
+  inputTokens  Int
+  outputTokens Int
+
+  @@unique([runId, itemId])
+  @@index([itemId])
+}

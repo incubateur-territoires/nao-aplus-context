@@ -1,0 +1,72 @@
+@import "tailwindcss";
+
+@theme {
+  --color-blue-background: #f5f5fe;
+  --color-blue-primary: #000091;
+  --color-pink-primary-light: #fee7fc;
+  --color-pink-primary: #6e445a;
+  --breakpoint-7xl: 1200px;
+}
+@layer theme, base, components, utilities;
+
+@import "tailwindcss/theme.css" layer(theme);
+/*
+    Tailwind classes should take precedence over global styles, see https://github.com/tailwindlabs/tailwindcss/discussions/15866
+    Trick found in: https://github.com/betagouv/complements-alimentaires/blob/staging/frontend/src/styles/index.css
+    That's why we use important
+*/
+@import "tailwindcss/utilities.css" layer(utilities) important;
+.fr-checkbox-group:has(#hidden-checkbox) {
+  display: none !important;
+}
+
+/* RGAA #10 - Visibilité du focus : on ne force l'overflow hidden que sur mobile,
+   là où le fil d'Ariane se replie réellement. Sur desktop (>= 48em), DSFR définit
+   lui-même overflow: visible ; notre ancien override permanent rognait le contour
+   de focus des liens du fil d'Ariane. */
+@media (max-width: 47.99em) {
+  .fr-breadcrumb .fr-collapse {
+    overflow: hidden !important;
+  }
+}
+
+/* Défilement fluide pour les ancres internes (ex. « Comment ça marche ? »).
+   On le désactive si l'utilisateur préfère réduire les animations (RGAA #13). */
+@media (prefers-reduced-motion: no-preference) {
+  html {
+    scroll-behavior: smooth;
+  }
+}
+
+.fr-container {
+  max-width: 1200px !important;
+}
+
+.zammad-chat {
+  bottom: 0 !important;
+}
+.zammad-chat-welcome {
+  display: flex !important;
+}
+
+/* RGAA #15 - Visibilité du focus : filet de sécurité pour les éléments non couverts par le DSFR */
+:focus-visible {
+  outline: 2px solid var(--focus, #0a76f6);
+  outline-offset: 2px;
+}
+
+/* RGAA #5 - Menu mobile : bordure visible autour de l'élément de navigation actif */
+@media (max-width: 61.99em) {
+  .fr-nav__link[aria-current]:not([aria-current="false"]),
+  .fr-nav__btn[aria-current]:not([aria-current="false"]) {
+    background-color: var(--background-action-low-blue-france);
+    box-shadow: inset 4px 0 0 var(--text-active-blue-france, #000091);
+  }
+}
+
+/* Page /statistiques-2 : la légende intégrée des web-components dsfr-chart est
+   remplacée par une légende maison (colonne gauche des cartes) → on masque
+   celle rendue par le composant (light DOM, pas de shadow root). */
+.stats-chart :is(bar-chart, pie-chart) .chart_legend {
+  display: none;
+}

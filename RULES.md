@@ -24,6 +24,16 @@ compétentes → un opérateur le prend en charge, échange via des **réponses*
 clôt. Objectif de service : traitement rapide (historiquement ~75 % des demandes résolues en
 moins de 5 jours).
 
+## Code source d'A+
+
+Le code de l'application est disponible dans `repos/aplus-product/` (Next.js + Prisma, snapshot
+de la branche `main`). Sers-t'en pour lever un doute sur la **sémantique** d'une colonne, d'un
+enum ou d'une transition de statut plutôt que de la deviner :
+- `prisma/schema.prisma` : modèle et enums de référence ; `prisma/migrations/` : historique.
+- `src/trpc/routers/` et `src/app/services/` : logique métier (qui pose quel statut, quand).
+- `prisma/script/`, `cron.json` : traitements planifiés (purges, relances, désactivations).
+- `docs/adr/`, `specs/` : décisions et spécifications produit.
+
 ## Modèle de données (PostgreSQL, généré par Prisma)
 
 > Conventions Prisma : noms de tables en **PascalCase entre guillemets** (`"Report"`), il faut

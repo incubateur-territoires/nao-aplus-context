@@ -1,0 +1,25 @@
+{
+  "jobs": [
+    {
+      "command": "0 7 * * 1 curl -s -X GET -H \"Authorization: Bearer $CRON_SECRET\" \"$APP_URL/api/cron/reports/overdue\""
+    },
+    {
+      "command": "0 18 */3 * * curl -s -X GET -H \"Authorization: Bearer $CRON_SECRET\" \"$APP_URL/api/cron/users/inactivity\""
+    },
+    {
+      "command": "0 * * * * curl -s -X GET -H \"Authorization: Bearer $CRON_SECRET\" \"$APP_URL/api/cron/notifications/digest\""
+    },
+    {
+      "command": "0 1 * * * curl -s -X GET -H \"Authorization: Bearer $CRON_SECRET\" \"$APP_URL/api/cron/users/deletion\""
+    },
+    {
+      "command": "0 2 * * * curl -s -X GET -H \"Authorization: Bearer $CRON_SECRET\" \"$APP_URL/api/cron/reports/auto-close\""
+    },
+    {
+      "command": "0 3 * * * curl -s -X GET -H \"Authorization: Bearer $CRON_SECRET\" \"$APP_URL/api/cron/reports/deletion\""
+    },
+    {
+      "command": "*/30 * * * * curl -s -X GET -H \"Authorization: Bearer $CRON_SECRET\" \"$APP_URL/api/cron/analytics/refresh\""
+    }
+  ]
+}

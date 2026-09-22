@@ -1,0 +1,5 @@
+-- CreateEnum
+CREATE TYPE "StandardProcedure" AS ENUM ('NOT_CONCERNED', 'HAS_STANDARD_PROCEDURE', 'NO_STANDARD_PROCEDURE');
+
+-- AlterTable
+ALTER TABLE "Answer" ADD COLUMN     "hasStandardProcedure" BOOLEAN NOT NULL DEFAULT false;

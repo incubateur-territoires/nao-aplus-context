@@ -18,6 +18,11 @@ dépôt au démarrage via `NAO_CONTEXT_GIT_URL` et charge `nao_config.yaml` + `R
   citoyen sensibles à ne jamais exposer).
 - `public-schema.sql` — dump `pg_dump` (schéma seul, sans données) servant de référence pour le
   modèle. Snapshot : à régénérer si le schéma A+ évolue (`pg_dump --schema-only`).
+- `repos/aplus-product/` — copie du code source d'A+ (GitLab `incubateur-territoires/startups/
+  administration-plus/administration-plus`, branche `main`) filtrée par les `include`/`exclude`
+  de `nao_config.yaml` : `prisma/` (schéma + migrations), `src/`, `docs/`, `specs/`. **Généré par
+  `nao sync`, ne pas éditer à la main.** C'est un snapshot committé : l'instance nao ne clone pas
+  ce dépôt elle-même, elle lit ce dossier.
 
 ## Le métier en une phrase
 A+ est une messagerie sécurisée qui débloque les démarches administratives des citoyens via des
@@ -35,6 +40,17 @@ A+ est une messagerie sécurisée qui débloque les démarches administratives d
   aucune donnée ni identifiant, uniquement de la métadonnée et de la doc.
 - Le `nao_config.yaml` doit contenir un `nao_config.yaml` valide à la racine (ou dans le
   sous-dossier pointé par `NAO_CONTEXT_GIT_SUBPATH`).
+- **Rafraîchir le code A+** (`repos/aplus-product/`) :
+  `nao sync -p repositories:aplus-product`, puis committer. `nao-core` (pip) n'a pas de wheel
+  pour macOS < 15 ; via Docker depuis la racine du dépôt :
+  ```sh
+  docker run --rm -v "$PWD":/ctx -w /ctx \
+    -e NAO_DB_HOST=x -e NAO_DB_PORT=5432 -e NAO_DB_NAME=x -e NAO_DB_USER=x -e NAO_DB_PASSWORD=x \
+    python:3.12-slim bash -lc 'apt-get update -qq && apt-get install -y -qq git >/dev/null; \
+      pip install -q nao-core; nao sync -p repositories:aplus-product'
+  ```
+  (les variables `NAO_DB_*` factices servent juste à faire passer la validation de la config,
+  la BDD n'est pas contactée.)
 
 ## Conventions d'analyse
 Français, concis, agrégats only sur les données personnelles. Voir `RULES.md` pour le détail
