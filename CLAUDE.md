@@ -30,6 +30,9 @@ dépôt au démarrage via `NAO_CONTEXT_GIT_URL` et charge `nao_config.yaml` + `R
   utilisation, via un bouton « Connect » affiché sous la conversation, et ne voit que ce à quoi
   elle a déjà accès. Les outils activés se pilotent dans *Settings → Agent → MCP servers*,
   groupés en Read-only / Write / Delete — **garder `Delete` désactivé**.
+- `databases/` — métadonnées par table générées par `nao sync -p databases` : `columns.md`
+  (structure seule, aucune donnée) et `annotations.md`, ce dernier **jamais écrasé** — c'est là
+  qu'on met le savoir métier propre à une table. Instantané à régénérer si le schéma A+ change.
 - `repos/aplus-product/` — copie du code source d'A+ (GitLab `incubateur-territoires/startups/
   administration-plus/administration-plus`, branche `main`) filtrée par les `include`/`exclude`
   de `nao_config.yaml` : `prisma/` (schéma + migrations), `src/`, `docs/`, `specs/`. **Généré par
@@ -63,6 +66,21 @@ A+ est une messagerie sécurisée qui débloque les démarches administratives d
   ```
   (les variables `NAO_DB_*` factices servent juste à faire passer la validation de la config,
   la BDD n'est pas contactée.)
+- **Rafraîchir les métadonnées de base** (`databases/`) : la base est sur le réseau privé
+  Scalingo, il faut donc un tunnel ouvert en parallèle. Et `nao-core` réclame trois dépendances
+  que la doc ne mentionne pas pour PostgreSQL.
+  ```sh
+  # terminal 1, à laisser tourner
+  scalingo --region osc-secnum-fr1 -a nao-administration-plus-prod db-tunnel NAO_DB_URL --port 10801
+  # terminal 2, depuis la racine ; NAO_DB_* dans un fichier local hors dépôt
+  docker run --rm -v "$PWD":/ctx -w /ctx --add-host=host.docker.internal:host-gateway \
+    --env-file ~/.nao-db.env python:3.12-slim bash -lc \
+    'pip install -q nao-core "ibis-framework[postgres]" "psycopg[binary]" packaging; \
+     nao sync -p databases'
+  ```
+  **`exclude_columns` doit rester le miroir exact des `GRANT` posés en base** : nao ne lit pas
+  `information_schema`, il documente donc les colonnes révoquées si on ne les liste pas, et
+  l'agent écrit ensuite du SQL qui échoue.
 - **Notion** : rien à rafraîchir, l'accès est direct via le serveur MCP (`agent/mcps/mcp.json`).
   Chaque personne clique « Connect » une fois, l'autorisation est mémorisée pour son compte.
   On a écarté l'export par lot (`nao sync -p notion`) pour deux raisons : il exige un jeton

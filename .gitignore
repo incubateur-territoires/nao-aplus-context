@@ -5,6 +5,10 @@ databases/**/preview.md
 databases/**/profiling.md
 databases/**/ai_summary.md
 
+# Cache interne de nao sync : liste brute des colonnes, avant application
+# d'exclude_columns. Aucune donnée, mais c'est un cache — inutile de le versionner.
+.meta/
+
 # Secrets locaux éventuels
 .env
 *.env

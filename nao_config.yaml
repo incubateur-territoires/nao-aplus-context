@@ -42,6 +42,37 @@ databases:
       - "public.MaintenanceMode"
       - "public.SiteBanner"
       - "public.NotificationView"
+      - "public.pg_stat_statements*"  # statistiques serveur, aucun intérêt métier
+
+    # Colonnes retirées des métadonnées générées.
+    #
+    # Elles sont déjà **révoquées dans PostgreSQL** : l'utilisateur de nao ne peut pas les lire,
+    # une requête qui les nomme échoue avec `permission denied`. Mais nao ne lit pas
+    # `information_schema` (qui filtre selon les droits) : sans cette liste, il les documente
+    # quand même, et l'agent écrit du SQL qui plante. Cette liste doit donc rester le miroir
+    # exact des GRANT posés en base.
+    exclude_columns:
+      # Identité et contenu du signalement — données de citoyens
+      - "public.Report.subject"
+      - "public.Report.description"
+      - "public.Report.nir"
+      - "public.Report.nif"
+      - "public.Report.caf"
+      - "public.Report.firstName"
+      - "public.Report.lastName"
+      - "public.Report.maritalName"
+      - "public.Report.birthDate"
+      - "public.Report.phone"
+      # Contenu des échanges
+      - "public.Answer.content"
+      # Agents : notes internes et téléphone
+      - "public.User.phone"
+      - "public.User.internalSupportComment"
+      - "public.User.banReason"
+      # Jeton d'activation de compte
+      - "public.PendingUser.verificationToken"
+      # Trace de navigation nominative
+      - "public.AnalyticsEvent.ipAddress"
 
 # Code source d'A+ (Next.js + Prisma), synchronisé dans repos/aplus-product/ par
 # `nao sync -p repositories:aplus-product` (voir CLAUDE.md). On ne garde que le code
