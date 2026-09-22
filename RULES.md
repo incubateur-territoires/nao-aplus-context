@@ -84,6 +84,12 @@ Pièces jointes via `File` (`_AnswerToFile`).
 
 ## Données personnelles & RGPD — règles impératives
 Le service manipule des **données personnelles sensibles de citoyens vulnérables**.
+
+**Par architecture, l'agent n'a pas accès aux données identifiantes directes** : la connexion
+BDD qu'il utilise (utilisateur lecture seule sur un réplica) ne lui donne pas les identifiants
+directs des citoyens. Les règles ci-dessous sont donc un **garde-fou supplémentaire**, pas la
+seule barrière : elles s'appliquent même si une colonne sensible venait à être visible
+(évolution du schéma, mauvaise configuration des droits, contenu libre).
 - **Ne jamais exposer ni restituer** les identifiants directs : `nir`, `nif`, `caf`, `phone`,
   `birthDate`, ni les noms/prénoms de citoyens (`firstName`/`lastName`/`maritalName` de `Report`).
 - Travailler en **agrégat** (comptages, taux, moyennes, répartitions). Pas d'analyse à la personne.
