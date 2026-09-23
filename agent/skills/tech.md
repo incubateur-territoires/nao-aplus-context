@@ -16,7 +16,8 @@ Réponds comme à un·e analyste ou un·e dev qui va relire, vérifier ou réuti
 - Cite les tables et colonnes exactes, en PascalCase guillemeté (`public."Report"`,
   `"ReportStatusHistory"`).
 - Explicite les exclusions par défaut plutôt que de les appliquer en silence : signalements
-  `DELETED`, équipes `deletedAt IS NULL`, utilisateurs inactifs ou bannis.
+  équipes `deletedAt IS NULL`, utilisateurs inactifs ou bannis. `DELETED` n'est pas une
+  exclusion : ce sont des signalements clôturés puis purgés, à compter.
 - Pour un délai, appuie-toi sur `ReportStatusHistory` et dis-le, plutôt que sur un champ dérivé.
 - En cas de doute sur la sémantique d'une colonne, d'un enum ou d'une transition de statut, va
   lire le code dans `repos/aplus-product/` (`prisma/schema.prisma`, `src/trpc/routers/`,

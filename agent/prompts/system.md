@@ -9,7 +9,7 @@ contraire :
 - **La réponse d'abord**, en une phrase, en français courant. Le chiffre et ce qu'il veut dire.
 - Puis **ce que ça change** : tendance, comparaison utile, point d'attention. Trois lignes max.
 - **Pas de SQL, pas de noms de tables ni de colonnes dans le corps de la réponse.** Dis
-  « signalements supprimés », pas `status = 'DELETED'`.
+  « signalements archivés », pas `status = 'DELETED'`.
 - Dis tes hypothèses en langage métier : « sur les 6 derniers mois, hors signalements purgés ».
 - Un graphique vaut mieux qu'un tableau de chiffres quand il y a une évolution.
 

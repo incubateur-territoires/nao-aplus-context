@@ -67,9 +67,12 @@ toujours les colonnes.
 ### Entité centrale — `Report` (un signalement / une demande)
 - `subject`, `description` : objet et détail du blocage — **tous deux fermés**, pas d'analyse de contenu.
 - `status` (enum `ReportStatus`) : `PENDING_ASSIGNMENT` (en attente d'affectation) →
-  `IN_TREATMENT` (en cours) → `COMPLETED` (traité) → `CLOSED` (clôturé) ; `DELETED` (supprimé).
+  `IN_TREATMENT` (en cours) → `COMPLETED` (traité) → `CLOSED` (clôturé) → `DELETED` (purgé :
+  clôturé depuis plus de 180 jours, puis anonymisé). `DELETED` n'est pas une annulation.
+  `CLOSED` peut être posé automatiquement 30 jours après `COMPLETED`.
+  Détail dans `databases/…/table=Report/annotations.md`.
 - `createdAt` : date de création. `lastAnswerAt` : date de la dernière réponse.
-  `overdueAt` : échéance au-delà de laquelle la demande est en retard.
+  `overdueAt` : date à laquelle le signalement a été marqué « en souffrance » (pas une échéance).
 - `areaId` → `Area` (territoire). `applicantTeamId` → `Team` (équipe aidante à l'origine).
   `authorId` → `User` (aidant créateur). `organizationId` → `Organization` (opérateur, nullable).
   `userId` → `User` (opérateur assigné, nullable).
@@ -80,7 +83,7 @@ toujours les colonnes.
 
 ### `ReportStatusHistory` — journal des changements de statut
 Une ligne par transition (`reportId`, `status`, `authorId`, `answerId`, `createdAt`).
-**Source de vérité pour les délais** (temps entre création et `COMPLETED`/`CLOSED`).
+**Source de vérité pour les délais** (temps entre création et `COMPLETED`).
 
 ### `Answer` — réponses / messages d'un signalement
 `reportId` → `Report`, `authorId` → `User`. **`content` est fermé** : on compte les réponses,
@@ -109,11 +112,11 @@ Pièces jointes via `File` (`_AnswerToFile`).
 - `NotificationFrequency` : `EACH_SOLICITATION`, `TWICE_DAILY`, `ONCE_DAILY`, `NONE`.
 
 ## Définitions d'indicateurs (à confirmer avec l'équipe avant usage officiel)
-- **Volume de signalements** : nombre de `Report` par période (`createdAt`), hors `status = 'DELETED'`.
-- **Délai de résolution** : écart entre `Report.createdAt` et la transition vers `COMPLETED`/`CLOSED`
-  dans `ReportStatusHistory` (privilégier l'historique plutôt qu'un champ dérivé).
-- **Taux de résolution** : part des signalements en `COMPLETED`/`CLOSED` sur le total créé sur la période.
-- **Demandes en retard** : `overdueAt < now()` et statut non terminal.
+- **Volume de signalements** : nombre de `Report` par période (`createdAt`), `DELETED` compris.
+- **Délai de résolution** : écart entre `Report.createdAt` et la première transition vers
+  `COMPLETED` dans `ReportStatusHistory`. Pas `CLOSED`, qui peut arriver 30 jours plus tard.
+- **Taux de résolution** : part des signalements en `COMPLETED`, `CLOSED` ou `DELETED` sur le total créé.
+- **Demandes en retard** : `overdueAt IS NOT NULL` et statut non terminal.
 - **Aidants actifs** : `User` (côté `HELPER`) ayant créé ≥ 1 signalement sur la période, ou `lastActivityAt` récent.
 - **Couverture territoriale** : nombre de `Area`/`inseeCode` distincts ayant au moins un signalement.
 - **Activité d'un agent** : `Report."authorId"` (aidant créateur) ou `Report."userId"` (opérateur
@@ -149,10 +152,10 @@ Français, concis, orienté décision. **Deux modes**, selon l'interlocuteur (d�
 
 - **Mode produit — le défaut.** Public : l'équipe produit, pas des analystes. La réponse en une
   phrase, puis ce qu'elle change. Langage métier, **ni SQL ni noms de tables ou d'enums** dans la
-  réponse. Hypothèses dites en clair (« sur 6 mois, hors signalements purgés »).
+  réponse. Hypothèses dites en clair (« sur 6 mois, équipes supprimées exclues »).
 - **Mode tech — sur demande** (`/tech`, « donne-moi la requête », question sur le modèle).
   Requête SQL, tables/colonnes exactes (PascalCase guillemeté), exclusions explicitées
-  (`DELETED`, équipes `deletedAt IS NULL`).
+  (équipes `deletedAt IS NULL`, utilisateurs inactifs…).
 
 Dans les deux cas : si l'indicateur n'est pas défini sans ambiguïté, demande la définition
 attendue avant de calculer.

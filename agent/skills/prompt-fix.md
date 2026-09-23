@@ -31,7 +31,7 @@ comportement as-tu constaté ? Décris-le, ou pose-moi la question analytique qu
    fichiers et des fonctions qui existent. Si tu ne trouves pas, dis-le dans le prompt plutôt
    que d'inventer un chemin plausible.
 2. **Vérifie que l'anomalie n'est pas une erreur de lecture** de ta part : mauvaise période,
-   `DELETED` non exclus, jointure qui duplique des lignes. Un faux positif envoyé à un dev coûte
+   `DELETED` exclus à tort (ce sont des clôturés purgés), jointure qui duplique des lignes. Un faux positif envoyé à un dev coûte
    plus cher qu'une minute de vérification.
 
 ## Structure du prompt produit
