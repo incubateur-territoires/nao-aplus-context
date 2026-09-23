@@ -1,14 +1,8 @@
-# Ce dépôt est public : les métadonnées de base qui contiennent des données réelles
-# ne doivent jamais y être commitées, même si quelqu'un réactive le template dans
-# nao_config.yaml. Voir le commentaire du bloc `templates`.
+# Données réelles : ne jamais commiter, même si un template est réactivé.
 databases/**/preview.md
 databases/**/profiling.md
 databases/**/ai_summary.md
 
-# Cache interne de nao sync : liste brute des colonnes, avant application
-# d'exclude_columns. Aucune donnée, mais c'est un cache — inutile de le versionner.
 .meta/
-
-# Secrets locaux éventuels
 .env
 *.env

@@ -1,12 +1,6 @@
 project_name: administration-plus
 
-# Connexion à la base de production Administration+ (PostgreSQL, schéma Prisma).
-# Identifiants injectés au runtime via l'environnement (idéalement un utilisateur EN LECTURE
-# SEULE sur un réplica). Deux façons de les fournir sur l'app Scalingo nao :
-#   - une seule connection string : NAO_DB_URL=postgres://user:pass@host:port/dbname
-#     (bin/web.sh la décompose automatiquement dans les variables ci-dessous), OU
-#   - les variables séparées : NAO_DB_HOST / NAO_DB_PORT / NAO_DB_NAME / NAO_DB_USER / NAO_DB_PASSWORD
-# Syntaxe de résolution des secrets nao : {{ env('NOM_VARIABLE') }}
+# Identifiants via l'environnement de l'app Scalingo (NAO_DB_URL, décomposée par bin/web.sh).
 databases:
   - name: aplus-postgres
     type: postgres
@@ -17,42 +11,26 @@ databases:
     password: "{{ env('NAO_DB_PASSWORD') }}"
     schema_name: public
 
-    # Templates de métadonnées générés par table, écrits dans databases/ et committés ici.
-    #
-    # ⚠️ CE DÉPÔT EST PUBLIC. Ne garder que des templates qui décrivent la *structure*, jamais
-    # le *contenu*. `columns` (noms, types, nullabilité) est sans risque.
-    #
-    # `preview` et `profiling` sont volontairement absents :
-    #   - `preview` écrit dix vraies lignes par table ;
-    #   - `profiling` écrit les valeurs les plus fréquentes de chaque colonne — sur une colonne
-    #     unique comme User.email, cela revient à publier des adresses réelles.
-    # Les réactiver publierait des données de production sur github.com. Prérequis avant
-    # d'y revenir : qu'`exclude_columns` couvre toute colonne identifiante et tout texte libre.
+    # Bloque tout SQL sur une table absente de databases/. Nouvelle table = resync.
+    allow_listed_only: true
+
+    # Dépôt public : structure seule. preview et profiling publieraient des données réelles.
     templates:
       - columns
 
-    # On exclut les tables techniques (auth, système) et les tables de jointure Prisma (_*)
-    # pour concentrer l'agent sur le modèle métier.
     exclude:
-      - "public._*"           # tables de liaison Prisma + _prisma_migrations
-      - "public.Account"      # authentification (better-auth)
+      - "public._*"
+      - "public.Account"
       - "public.Session"
       - "public.Verification"
       - "public.TwoFactor"
       - "public.MaintenanceMode"
       - "public.SiteBanner"
       - "public.NotificationView"
-      - "public.pg_stat_statements*"  # statistiques serveur, aucun intérêt métier
+      - "public.pg_stat_statements*"
 
-    # Colonnes retirées des métadonnées générées.
-    #
-    # Elles sont déjà **révoquées dans PostgreSQL** : l'utilisateur de nao ne peut pas les lire,
-    # une requête qui les nomme échoue avec `permission denied`. Mais nao ne lit pas
-    # `information_schema` (qui filtre selon les droits) : sans cette liste, il les documente
-    # quand même, et l'agent écrit du SQL qui plante. Cette liste doit donc rester le miroir
-    # exact des GRANT posés en base.
+    # Miroir des colonnes révoquées en base : nao les documenterait sinon.
     exclude_columns:
-      # Identité et contenu du signalement — données de citoyens
       - "public.Report.subject"
       - "public.Report.description"
       - "public.Report.nir"
@@ -63,20 +41,13 @@ databases:
       - "public.Report.maritalName"
       - "public.Report.birthDate"
       - "public.Report.phone"
-      # Contenu des échanges
       - "public.Answer.content"
-      # Agents : notes internes et téléphone
       - "public.User.phone"
       - "public.User.internalSupportComment"
       - "public.User.banReason"
-      # Jeton d'activation de compte
       - "public.PendingUser.verificationToken"
-      # Trace de navigation nominative
       - "public.AnalyticsEvent.ipAddress"
 
-# Code source d'A+ (Next.js + Prisma), synchronisé dans repos/aplus-product/ par
-# `nao sync -p repositories:aplus-product` (voir CLAUDE.md). On ne garde que le code
-# lisible : modèle Prisma + migrations, code applicatif, docs/ADR, specs.
 repos:
   - name: aplus-product
     url: https://gitlab.com/incubateur-territoires/startups/administration-plus/administration-plus
@@ -93,17 +64,13 @@ repos:
     exclude:
       - "src/generated/**"
       - "src/dsfr-bootstrap/**"
-      - "src/**/*.json"       # animation Lottie de 1,3 Mo
+      - "src/**/*.json"
       - "**/*.png"
       - "**/*.jpg"
       - "**/*.svg"
       - "**/*.ico"
       - "**/*.woff*"
 
-# Pas de bloc `notion:` ici : l'export par lot (`nao sync -p notion`) demande un jeton
-# d'intégration au niveau du workspace, que l'équipe n'a pas le droit de créer. Notion passe
-# par le serveur MCP déclaré dans agent/mcps/mcp.json — lecture ET écriture, en direct,
-# chaque personne s'authentifiant avec son propre compte.
-
-# Le fournisseur LLM et sa clé sont configurés via l'interface de Nao (stockés en base).
+# Notion passe par le MCP (agent/mcps/mcp.json), pas par nao sync.
+# LLM configuré dans l'interface nao.
 llm: null
