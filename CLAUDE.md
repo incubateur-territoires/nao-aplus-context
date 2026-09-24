@@ -16,8 +16,6 @@ dépôt au démarrage via `NAO_CONTEXT_GIT_URL` et charge `nao_config.yaml` + `R
 - `RULES.md` — contexte métier : acteurs (aidants/opérateurs/citoyens), cycle de vie d'un
   signalement, **modèle de données**, définitions d'indicateurs, et **règles RGPD** (données
   citoyen sensibles à ne jamais exposer).
-- `public-schema.sql` — dump `pg_dump` (schéma seul, sans données) servant de référence pour le
-  modèle. Snapshot : à régénérer si le schéma A+ évolue (`pg_dump --schema-only`).
 - `agent/prompts/system.md` — ton par défaut de l'agent sur toutes les surfaces (web, Slack…).
   Étend le prompt nao via `{{ nao_prompt }}` au lieu de le remplacer. Relu à chaque message :
   éditer et pousser suffit, pas besoin de redémarrer l'instance.

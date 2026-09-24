@@ -19,6 +19,10 @@ complexes ou urgentes des citoyens (risque de non-recours aux droits). Trois act
 - **Citoyens** : personnes en fragilité, qui n'accèdent pas directement à la plateforme — leurs
   données figurent dans le signalement.
 
+En base, un agent est aidant ou opérateur selon son équipe : `_TeamToUser` puis `Team.role`
+(`HELPER` / `OPERATOR`). `User.role` ne vaut que `user`, `admin` ou `supervisor` : ce n'est pas
+le rôle métier.
+
 Cycle : un aidant signale un blocage → le signalement est qualifié et adressé aux équipes
 compétentes → un opérateur le prend en charge, échange via des **réponses** (`Answer`) et le
 clôt. Objectif de service : traitement rapide (historiquement ~75 % des demandes résolues en
@@ -33,6 +37,8 @@ enum ou d'une transition de statut plutôt que de la deviner :
 - `src/trpc/routers/` et `src/app/services/` : logique métier (qui pose quel statut, quand).
 - `prisma/script/`, `cron.json` : traitements planifiés (purges, relances, désactivations).
 - `docs/adr/`, `specs/` : décisions et spécifications produit.
+
+Certains fichiers dépassent la limite de lecture : cherche avec `grep` plutôt que de les lire en entier.
 
 ## Modèle de données (PostgreSQL, généré par Prisma)
 
@@ -95,8 +101,9 @@ Pièces jointes (`File`, `_AnswerToFile`) : non accessibles.
 
 ### Acteurs et organisation
 - `User` : agents (aidants et opérateurs). `email`, `firstName`/`lastName`, `profession`,
-  `role` (texte applicatif), `lastActivityAt`, `isInactive`/`deletedAt`/`banned` (un utilisateur
-  **actif** = non supprimé, non banni, non inactif). `notificationFrequency`.
+  `role` (texte applicatif), `lastActivityAt`, `isInactive` (**date**, pas un booléen :
+  renseignée = inactif), `deletedAt`, `banned`. Actif = `"isInactive" IS NULL AND "deletedAt" IS NULL
+  AND NOT "banned"`. `notificationFrequency`.
 - `Team` : équipe rattachée à une `Organization`. `role` (`HELPER`/`OPERATOR`), `type` (`TeamType`),
   `deletedAt` (suppression douce — filtrer `"deletedAt" IS NULL` pour les équipes actives).
   Membres via `_TeamToUser`, managers via `_TeamManager` (voir « Tables de jointure »).
@@ -125,6 +132,8 @@ Les autres tables `_X` sont fermées.
 - `ReportStatus` : `PENDING_ASSIGNMENT`, `IN_TREATMENT`, `COMPLETED`, `CLOSED`, `DELETED`.
 - `OrganizationRole` : `OPERATOR`, `HELPER`.
 - `TeamType` : `FRANCE_SERVICE`, `HISTORICAL_SOCIAL_WORKER`, `TZNR`, `OTHERS_HELPERS`, `OPERATOR`.
+  `TZNR` = Territoire zéro non-recours : expérimentation où des travailleurs sociaux de CCAS
+  utilisent A+. Équipes `Team.type = 'TZNR'`, territoires via `_AreaToTeam`.
 - `NotificationFrequency` : `EACH_SOLICITATION`, `TWICE_DAILY`, `ONCE_DAILY`, `NONE`.
 
 ## Définitions d'indicateurs (à confirmer avec l'équipe avant usage officiel)
