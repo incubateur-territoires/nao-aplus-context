@@ -38,8 +38,8 @@ enum ou d'une transition de statut plutôt que de la deviner :
 
 > Conventions Prisma : noms de tables en **PascalCase entre guillemets** (`"Report"`), il faut
 > donc citer les identifiants en SQL (`SELECT * FROM public."Report"`). Les colonnes sont en
-> camelCase guillemeté (`"createdAt"`). Les tables `_X` (jointures M-N) et `_prisma_migrations`
-> sont exclues du contexte. Les clés sont des `text` (cuid).
+> camelCase guillemeté (`"createdAt"`). Six tables de jointure M-N sont lisibles (voir plus bas) ;
+> les autres `_X` et `_prisma_migrations` sont exclues. Les clés sont des `text` (cuid).
 
 ### Ce que tu peux réellement lire
 
@@ -79,7 +79,8 @@ toujours les colonnes.
 - **Données citoyen — fermées, sauf une** : `firstName`, `lastName`, `maritalName`, `birthDate`,
   `phone`, `caf`, `nir` (n° sécu), `nif` (n° fiscal) sont inaccessibles. Seul
   `citizenPermissionConfirmed` (booléen, mandat recueilli) est lisible.
-- Liaisons : `_ReportToRequestedTeams` (équipes opérateur sollicitées), `_ReportCoAuthors` (co-aidants).
+- Liaisons : `_ReportToRequestedTeams` (équipes sollicitées), `_ReportCoAuthors` (co-aidants).
+  Voir « Tables de jointure » pour le sens de `A` et `B`.
 
 ### `ReportStatusHistory` — journal des changements de statut
 Une ligne par transition (`reportId`, `status`, `authorId`, `answerId`, `createdAt`).
@@ -90,7 +91,7 @@ Une ligne par transition (`reportId`, `status`, `authorId`, `answerId`, `created
 on ne les lit pas. Drapeaux : `isIrrelevant`,
 `isMetadataOnly` (message technique sans contenu métier — souvent à exclure des analyses de
 contenu), `isOperatorOnly` (visible opérateurs seulement), `hasStandardProcedure`.
-Pièces jointes via `File` (`_AnswerToFile`).
+Pièces jointes (`File`, `_AnswerToFile`) : non accessibles.
 
 ### Acteurs et organisation
 - `User` : agents (aidants et opérateurs). `email`, `firstName`/`lastName`, `profession`,
@@ -98,12 +99,27 @@ Pièces jointes via `File` (`_AnswerToFile`).
   **actif** = non supprimé, non banni, non inactif). `notificationFrequency`.
 - `Team` : équipe rattachée à une `Organization`. `role` (`HELPER`/`OPERATOR`), `type` (`TeamType`),
   `deletedAt` (suppression douce — filtrer `"deletedAt" IS NULL` pour les équipes actives).
-  Membres via `_TeamToUser`, managers via `_TeamManager`.
+  Membres via `_TeamToUser`, managers via `_TeamManager` (voir « Tables de jointure »).
 - `Organization` : structure (CAF, CPAM…). `name`, `shortName`, `role`, `type`. Tags via `OrganizationTag`.
-- `Area` : territoire, identifié par `inseeCode` (code commune INSEE). Lié aux équipes (`_AreaToTeam`).
+- `Area` : territoire, identifié par `inseeCode` (code commune INSEE). Lié aux équipes via `_AreaToTeam`.
 - `Supervisor` / `PendingUser` / `PendingSupervisor` : superviseurs et invitations en attente.
 - `AnalyticsEvent` : événements d'usage produit (`eventName`, `eventCategory`, `pagePath`,
   `metadata` jsonb, `occurredAt`) — pour l'analyse de navigation/fréquentation.
+
+### Tables de jointure
+
+Deux colonnes, `A` et `B`, dont les noms ne disent rien. Toujours vérifier ici avant de joindre.
+
+| Table | `A` | `B` |
+|---|---|---|
+| `_TeamToUser` | `Team.id` | `User.id` (membre) |
+| `_TeamManager` | `Team.id` | `User.id` (manager) |
+| `_AreaToTeam` | `Area.id` | `Team.id` |
+| `_ReportToRequestedTeams` | `Report.id` | `Team.id` (équipe sollicitée) |
+| `_ReportCoAuthors` | `Report.id` | `User.id` (co-aidant) |
+| `_OrganizationToOrganizationTag` | `Organization.id` | `OrganizationTag.id` |
+
+Les autres tables `_X` sont fermées.
 
 ### Énumérations clés
 - `ReportStatus` : `PENDING_ASSIGNMENT`, `IN_TREATMENT`, `COMPLETED`, `CLOSED`, `DELETED`.

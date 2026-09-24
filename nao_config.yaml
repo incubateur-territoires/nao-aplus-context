@@ -18,8 +18,19 @@ databases:
     templates:
       - columns
 
+    # Jointures Prisma : seules celles du GRANT restent visibles.
     exclude:
-      - "public._*"
+      - "public._prisma_migrations"
+      - "public._AnswerToFile"
+      - "public._AreaToPendingSupervisor"
+      - "public._AreaToSupervisor"
+      - "public._DeactivatedUserManagedTeams"
+      - "public._DeactivatedUserTeams"
+      - "public._OrganizationToPendingSupervisor"
+      - "public._OrganizationToSupervisor"
+      - "public._OrganizationToTeamSpecificField"
+      - "public._PendingManagersTeams"
+      - "public._PendingUsersTeams"
       - "public.Account"
       - "public.Session"
       - "public.Verification"
