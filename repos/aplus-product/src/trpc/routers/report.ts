@@ -18,6 +18,7 @@ import {
 import { Prisma } from "@/generated/prisma/client";
 import { sendTemplatedEmail } from "@/app/services/email/email.service";
 import { buildReportUrl } from "@/utils/report-url";
+import { getReportAreaFromApplicantTeam } from "@/utils/report-area";
 import { clientReportStatusSchema } from "@/utils/report-status-input";
 import {
   checkCoAuthorsInApplicantTeam,
@@ -996,8 +997,17 @@ export const reportRouter = createTRPCRouter({
           organizationId: true,
           type: true,
           users: { select: { id: true } },
+          areas: { select: { id: true, name: true } },
         },
       });
+
+      const reportArea = getReportAreaFromApplicantTeam(applicantTeam.areas);
+      if (!reportArea) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "L'équipe à l'origine du signalement n'a aucun territoire.",
+        });
+      }
 
       // Un co-auteur est un membre de l'équipe autrice. Si l'équipe a changé en
       // cours de formulaire, la sélection peut encore contenir des collègues de
@@ -1018,10 +1028,7 @@ export const reportRouter = createTRPCRouter({
       // Les équipes destinataires suivent les mêmes règles que la liste
       // proposée au formulaire, revalidées côté serveur.
       await checkTeamsInvitableForReport(
-        {
-          areaId: input.area[0].value,
-          applicantTeamType: applicantTeam.type,
-        },
+        applicantTeam.type,
         input.requestedTeams.map((requestedTeam) => requestedTeam.value),
       );
       const coAuthorIds = input.colleagues.flatMap((colleague) =>
@@ -1057,7 +1064,7 @@ export const reportRouter = createTRPCRouter({
           connect: coAuthorIds.map((id) => ({ id })),
         },
         area: {
-          connect: { id: input.area[0].value },
+          connect: { id: reportArea.id },
         },
         applicantTeam: {
           connect: {
@@ -1272,13 +1279,10 @@ export const reportRouter = createTRPCRouter({
       await checkReportAccess(ctx, input.reportId);
       const report = await prisma.report.findUniqueOrThrow({
         where: { id: input.reportId },
-        select: { areaId: true, applicantTeam: { select: { type: true } } },
+        select: { applicantTeam: { select: { type: true } } },
       });
       await checkTeamsInvitableForReport(
-        {
-          areaId: report.areaId,
-          applicantTeamType: report.applicantTeam.type,
-        },
+        report.applicantTeam.type,
         input.teamIds,
       );
       await prisma.report.update({

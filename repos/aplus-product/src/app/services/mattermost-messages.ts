@@ -1,38 +1,25 @@
 import type { EmailBatchOutcome } from "@/app/services/email/email-batch";
-import { buildReportUrl } from "@/utils/report-url";
+import type { TemplateKey } from "@/app/services/email/email.template";
+import { sentryDetailLabel } from "@/utils/sentry-url";
 
-function buildReportRows(reportIds: string[]): string {
-  return reportIds
-    .map(
-      (id, index) =>
-        `| ${index + 1} | \`${id.slice(0, 8)}...\` | [Voir le signalement](${buildReportUrl(id)}) |`,
-    )
-    .join("\n");
-}
-
-function buildEmailFailureBlock(emails: EmailBatchOutcome): string {
+// Des compteurs seulement : lister les signalements dépassait la taille maximale
+// d'un post. Les identifiants sont dans les logs, les échecs d'e-mail dans Sentry.
+function buildEmailFailureLine(
+  emails: EmailBatchOutcome,
+  template: TemplateKey,
+): string {
   if (emails.failures.length === 0) return "";
 
-  const failureList = emails.failures
-    .map(
-      (failure) => `  - \`${failure.ref.slice(0, 8)}...\` - ${failure.error}`,
-    )
-    .join("\n");
-
-  return `\n\n> :email: **${emails.failures.length}** échec(s) d'envoi d'e-mail sur ${emails.sent.length + emails.failures.length} tentative(s)\n${failureList}`;
+  return `\n\n> :email: **${emails.failures.length}** échec(s) d'envoi d'e-mail sur ${emails.sent.length + emails.failures.length} tentative(s) — ${sentryDetailLabel(`template:${template}`)}`;
 }
 
 export function buildOverdueReportsMessage(
-  reportIds: string[],
+  reportCount: number,
   emails: EmailBatchOutcome,
 ): string {
   return `**CRON - Signalements en souffrance**
 
-> **${reportIds.length}** signalement(s) viennent d'être marqués "En souffrance"
-
-| # | ID | Action |
-|:---:|:---|:---|
-${buildReportRows(reportIds)}${buildEmailFailureBlock(emails)}`;
+> **${reportCount}** signalement(s) viennent d'être marqués "En souffrance"${buildEmailFailureLine(emails, "REPORT_OVERDUE")}`;
 }
 
 export function buildNoOverdueReportsMessage(): string {
@@ -104,16 +91,12 @@ export function buildInactivitySummaryMessage(
 }
 
 export function buildAutoClosedReportsMessage(
-  reportIds: string[],
+  reportCount: number,
   emails: EmailBatchOutcome,
 ): string {
   return `**CRON - Fermeture automatique de signalements**
 
-> **${reportIds.length}** signalement(s) traité(s) depuis plus de 30 jours ont été automatiquement fermés
-
-| # | ID | Action |
-|:---:|:---|:---|
-${buildReportRows(reportIds)}${buildEmailFailureBlock(emails)}`;
+> **${reportCount}** signalement(s) traité(s) depuis plus de 30 jours ont été automatiquement fermés${buildEmailFailureLine(emails, "REPORT_AUTO_CLOSED")}`;
 }
 
 export function buildNoAutoClosedReportsMessage(): string {
@@ -124,6 +107,12 @@ export function buildNoAutoClosedReportsMessage(): string {
 
 export interface ReportDeletionSummary {
   reportsDeleted: { id: string }[];
+  pseudonymized?: { id: string }[];
+  awaitingPseudonymization?: { id: string }[];
+  awaitingPseudonymizationCount?: number;
+  contentErased?: { id: string }[];
+  pseudonymizationOutage?: boolean;
+  pseudonymizationEnabled: boolean;
   fileErrors: { reportId: string; fileId: string; error: string }[];
   errors: { reportId: string; error: string }[];
 }
@@ -135,32 +124,46 @@ export function buildDeletedReportsMessage(
     "**CRON - Suppression de signalements (6 mois après fermeture)**",
   ];
 
+  // Des compteurs seulement : une liste d'identifiants rendait le message
+  // illisible au-delà de quelques dizaines, et le détail est dans Sentry.
+  const failures = summary.errors.length + summary.fileErrors.length;
+  if (failures > 0) {
+    lines.push(
+      `> :x: **${summary.errors.length}** erreur(s) de suppression · **${summary.fileErrors.length}** fichier(s) non supprimé(s) — ${sentryDetailLabel("cron:reports/deletion")}`,
+    );
+  }
+
   if (summary.reportsDeleted.length > 0) {
-    const list = summary.reportsDeleted
-      .map((r) => `  - \`${r.id.slice(0, 8)}...\``)
-      .join("\n");
     lines.push(
-      `> :wastebasket: **${summary.reportsDeleted.length}** signalement(s) anonymisé(s) et supprimé(s)\n${list}`,
+      `> :wastebasket: **${summary.reportsDeleted.length}** signalement(s) anonymisé(s) et supprimé(s)`,
     );
   }
 
-  if (summary.fileErrors.length > 0) {
-    const list = summary.fileErrors
-      .map(
-        (e) =>
-          `  - report \`${e.reportId.slice(0, 8)}...\` / fichier \`${e.fileId.slice(0, 8)}...\` - ${e.error}`,
-      )
-      .join("\n");
+  const pseudonymized = summary.pseudonymized?.length ?? 0;
+  const awaiting =
+    summary.awaitingPseudonymizationCount ??
+    summary.awaitingPseudonymization?.length ??
+    0;
+  const erased = summary.contentErased?.length ?? 0;
+
+  // Drapeau éteint, le texte est remplacé comme il l'a toujours été : la ligne
+  // n'apporterait qu'un compteur de « remplacés » égal aux supprimés.
+  const textWorthMentioning =
+    summary.pseudonymizationEnabled &&
+    (pseudonymized > 0 || awaiting > 0 || erased > 0);
+
+  if (textWorthMentioning) {
     lines.push(
-      `> :warning: **${summary.fileErrors.length}** erreur(s) de suppression de fichier S3\n${list}`,
+      `> :lock: Texte : **${pseudonymized}** caviardé(s) · **${awaiting}** en attente · **${erased}** remplacé(s)`,
     );
   }
 
-  if (summary.errors.length > 0) {
-    const list = summary.errors
-      .map((e) => `  - \`${e.reportId.slice(0, 8)}...\` - ${e.error}`)
-      .join("\n");
-    lines.push(`> :x: **${summary.errors.length}** erreur(s)\n${list}`);
+  // L'alerte porte sur le stock en attente, pas sur un dossier : c'est lui qui
+  // dit l'ampleur d'une indisponibilité, et il est la seule chose à surveiller.
+  if (summary.pseudonymizationOutage) {
+    lines.push(
+      `> :rotating_light: **Pipeline de caviardage indisponible.** Le masquage des signalements a bien eu lieu, mais **${awaiting}** texte(s) attendent d'être caviardés. Aucun contenu n'a été remplacé pour cette raison.`,
+    );
   }
 
   return lines.join("\n\n");

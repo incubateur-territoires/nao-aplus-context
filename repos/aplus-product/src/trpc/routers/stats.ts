@@ -15,7 +15,7 @@ import { z } from "zod";
  * Prisma (schéma `analytics`), on l'interroge donc en `$queryRaw`.
  *
  * La vue inclut les signalements DELETED (anonymisés) et les statistiques les
- * comptent : ils apparaissent comme « Supprimé » dans la répartition par état.
+ * comptent : ils sont fondus dans « Fermé » dans la répartition par état.
  *
  * Les délais (création → prise en charge, création → traitement) lisent des
  * colonnes pré-calculées dans la vue (migrations dédiées) — plus de calcul live
@@ -76,19 +76,20 @@ export interface CareDelayTeamRow {
   teamId: string;
   teamName: string;
   totalReports: number;
-  inTreatmentCount: number;
+  takenInChargeCount: number;
   avgDelayBusinessDays: number | null;
   underOneBusinessDayCount: number;
   underTwoBusinessDaysCount: number;
   underThreeBusinessDaysCount: number;
 }
 
+// Un signalement DELETED est un signalement fermé puis anonymisé (six mois
+// après) : pour le lecteur c'est un « Fermé », l'anonymisation n'est pas un état.
 const STATUS_LABELS: Record<string, string> = {
   [ReportStatus.PENDING_ASSIGNMENT]: "En attente de prise en charge",
   [ReportStatus.IN_TREATMENT]: "En cours de traitement",
   [ReportStatus.COMPLETED]: "Traité",
   [ReportStatus.CLOSED]: "Fermé",
-  [ReportStatus.DELETED]: "Supprimé",
 };
 
 const STATUS_ORDER: string[] = [
@@ -96,7 +97,6 @@ const STATUS_ORDER: string[] = [
   ReportStatus.IN_TREATMENT,
   ReportStatus.COMPLETED,
   ReportStatus.CLOSED,
-  ReportStatus.DELETED,
 ];
 
 // Seuil du graphique 72h en jours OUVRÉS (pas 72h calendaires : la référence
@@ -432,13 +432,21 @@ export const statsRouter = createTRPCRouter({
         values: [within72h, beyond72h],
       };
 
-      const sortedStatus = [...byStatus].sort(
-        (a, b) =>
-          STATUS_ORDER.indexOf(a.status) - STATUS_ORDER.indexOf(b.status),
+      const countByStatus = new Map<string, number>();
+      for (const r of byStatus) {
+        const status =
+          r.status === ReportStatus.DELETED ? ReportStatus.CLOSED : r.status;
+        countByStatus.set(
+          status,
+          (countByStatus.get(status) ?? 0) + toNumber(r.count),
+        );
+      }
+      const presentStatuses = STATUS_ORDER.filter((status) =>
+        countByStatus.has(status),
       );
       const reportsByStatus: ChartSeries = {
-        labels: sortedStatus.map((r) => STATUS_LABELS[r.status] ?? r.status),
-        values: sortedStatus.map((r) => toNumber(r.count)),
+        labels: presentStatuses.map((status) => STATUS_LABELS[status]),
+        values: presentStatuses.map((status) => countByStatus.get(status) ?? 0),
       };
 
       const reportsByOperator: ChartSeries = {
@@ -498,17 +506,19 @@ export const statsRouter = createTRPCRouter({
 
   /**
    * Tableau « Délais de prise en charge » : agrégats par équipe opérateur
-   * sollicitée (prise en charge = premier passage au statut IN_TREATMENT,
-   * colonnes pré-calculées dans la vue).
+   * sollicitée. Même définition que les graphiques : prise en charge = premier
+   * geste de l'opérateur (IN_TREATMENT ou COMPLETED), colonnes `takenInCharge*`
+   * pré-calculées dans la vue. Le délai est celui du signalement : une équipe
+   * co-sollicitée hérite du délai même si une autre a fait le geste.
    *
    * Jointure sur `_ReportToRequestedTeams` + `Team` et NON
    * `unnest("requestedTeamIds", "requestedTeamNames")` : les deux tableaux de la
    * vue sont agrégés avec des tris indépendants (id vs name), l'appariement
    * positionnel id/nom serait donc faux.
    *
-   * ⚠️ `"inTreatmentDelayBusinessDays"` vaut 0 (et non NULL) pour un signalement
+   * ⚠️ `"takenInChargeDelayBusinessDays"` vaut 0 (et non NULL) pour un signalement
    * jamais pris en charge (`generate_series` avec borne NULL → 0 ligne) : toutes
-   * les agrégations de délai sont donc conditionnées par `"hasInTreatment"`.
+   * les agrégations de délai sont donc conditionnées par `"hasTakenInCharge"`.
    *
    * Tri et pagination côté client : une ligne par équipe (~2 500 max), une seule
    * requête agrégée suffit.
@@ -531,7 +541,7 @@ export const statsRouter = createTRPCRouter({
           teamId: string;
           teamName: string;
           totalReports: number;
-          inTreatmentCount: number;
+          takenInChargeCount: number;
           avgDelayBusinessDays: number | null;
           underOneBusinessDayCount: number;
           underTwoBusinessDaysCount: number;
@@ -542,19 +552,19 @@ export const statsRouter = createTRPCRouter({
           t.id   AS "teamId",
           t.name AS "teamName",
           COUNT(*)::int AS "totalReports",
-          COUNT(*) FILTER (WHERE f."hasInTreatment")::int AS "inTreatmentCount",
+          COUNT(*) FILTER (WHERE f."hasTakenInCharge")::int AS "takenInChargeCount",
           ROUND(
-            AVG(f."inTreatmentDelayBusinessDays") FILTER (WHERE f."hasInTreatment"),
+            AVG(f."takenInChargeDelayBusinessDays") FILTER (WHERE f."hasTakenInCharge"),
             1
           )::float8 AS "avgDelayBusinessDays",
           COUNT(*) FILTER (
-            WHERE f."hasInTreatment" AND f."inTreatmentDelayBusinessDays" < 1
+            WHERE f."hasTakenInCharge" AND f."takenInChargeDelayBusinessDays" < 1
           )::int AS "underOneBusinessDayCount",
           COUNT(*) FILTER (
-            WHERE f."hasInTreatment" AND f."inTreatmentDelayBusinessDays" < 2
+            WHERE f."hasTakenInCharge" AND f."takenInChargeDelayBusinessDays" < 2
           )::int AS "underTwoBusinessDaysCount",
           COUNT(*) FILTER (
-            WHERE f."hasInTreatment" AND f."inTreatmentDelayBusinessDays" < 3
+            WHERE f."hasTakenInCharge" AND f."takenInChargeDelayBusinessDays" < 3
           )::int AS "underThreeBusinessDaysCount"
         FROM analytics.v_report_fact f
         JOIN public."_ReportToRequestedTeams" rt ON rt."A" = f."reportId"

@@ -794,22 +794,20 @@ describe("Authorization Middleware", () => {
   });
 
   describe("checkTeamsInvitableForReport", () => {
-    const reportScope = {
-      areaId: "area-1",
-      applicantTeamType: "FRANCE_SERVICE",
-    } as Parameters<typeof checkTeamsInvitableForReport>[0];
+    const applicantTeamType = "FRANCE_SERVICE" as Parameters<
+      typeof checkTeamsInvitableForReport
+    >[0];
 
     it("passes when every team matches the invitable conditions", async () => {
       (prisma.team.count as jest.Mock).mockResolvedValue(2);
 
       await expect(
-        checkTeamsInvitableForReport(reportScope, ["team-2", "team-3"]),
+        checkTeamsInvitableForReport(applicantTeamType, ["team-2", "team-3"]),
       ).resolves.toBeUndefined();
 
       expect(prisma.team.count).toHaveBeenCalledWith({
         where: expect.objectContaining({
           id: { in: ["team-2", "team-3"] },
-          areas: { some: { id: "area-1" } },
           role: "OPERATOR",
           users: { some: {} },
           acceptTypes: { has: "FRANCE_SERVICE" },
@@ -820,17 +818,29 @@ describe("Authorization Middleware", () => {
 
     it("passes without querying when the list is empty", async () => {
       await expect(
-        checkTeamsInvitableForReport(reportScope, []),
+        checkTeamsInvitableForReport(applicantTeamType, []),
       ).resolves.toBeUndefined();
 
       expect(prisma.team.count).not.toHaveBeenCalled();
     });
 
-    it("throws FORBIDDEN when a team does not match (deleted, helper, off-territory…)", async () => {
+    it("does not restrict teams to a territory", async () => {
+      (prisma.team.count as jest.Mock).mockResolvedValue(1);
+
+      await checkTeamsInvitableForReport(applicantTeamType, ["team-2"]);
+
+      const { where } = (prisma.team.count as jest.Mock).mock.calls[0][0];
+      expect(where).not.toHaveProperty("areas");
+    });
+
+    it("throws FORBIDDEN when a team does not match (deleted, helper…)", async () => {
       (prisma.team.count as jest.Mock).mockResolvedValue(1);
 
       await expect(
-        checkTeamsInvitableForReport(reportScope, ["team-2", "forged-team"]),
+        checkTeamsInvitableForReport(applicantTeamType, [
+          "team-2",
+          "forged-team",
+        ]),
       ).rejects.toMatchObject({ code: "FORBIDDEN" });
     });
   });

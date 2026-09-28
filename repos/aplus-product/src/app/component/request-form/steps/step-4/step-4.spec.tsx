@@ -4,7 +4,10 @@ import userEvent from "@testing-library/user-event";
 import { Step4, InfoRow } from "./step-4";
 import React from "react";
 import { TRPCWrapper } from "@/test/utils/trpc.wrapper";
-import { RequestFormWrapper } from "@/test/utils/request-form.wrapper";
+import {
+  RequestFormWrapper,
+  initialValues,
+} from "@/test/utils/request-form.wrapper";
 
 global.fetch = jest.fn(() =>
   Promise.resolve({
@@ -31,6 +34,15 @@ let mockColleaguesData: Array<{
   { id: "user2", firstName: "Jane", lastName: "Smith" },
   { id: "user3", firstName: "Bob", lastName: "Johnson" },
 ];
+
+const mockCurrentUser = {
+  teams: [
+    {
+      id: "structure-test",
+      areas: [{ id: "pas-de-calais", name: "Pas-de-Calais" }],
+    },
+  ],
+};
 
 jest.mock("next/navigation", () => {
   const actual = jest.requireActual("next/navigation");
@@ -68,6 +80,9 @@ jest.mock("@/trpc/client", () => ({
       },
     },
     user: {
+      getCurrentUser: {
+        queryOptions: () => ({ queryKey: ["user", "getCurrentUser"] }),
+      },
       getUsers: {
         queryOptions: () => ({
           queryKey: ["users"],
@@ -95,9 +110,10 @@ jest.mock("@/app/query/file/file.query", () => ({
 
 jest.mock("@tanstack/react-query", () => ({
   ...jest.requireActual("@tanstack/react-query"),
-  useQuery: jest.fn(() => {
+  useQuery: jest.fn(({ queryKey }: { queryKey: string[] }) => {
     return {
-      data: mockColleaguesData,
+      data:
+        queryKey[1] === "getCurrentUser" ? mockCurrentUser : mockColleaguesData,
       isLoading: false,
       error: null,
     };
@@ -169,6 +185,29 @@ describe("Step4", () => {
     expect(
       screen.getByLabelText(/autorisation du citoyen/i),
     ).toBeInTheDocument();
+  });
+
+  it("affiche le territoire de l'équipe autrice, pas celui choisi pour filtrer les destinataires", () => {
+    render(<Step4 />, {
+      wrapper: ({ children }) => (
+        <TRPCWrapper>
+          <RequestFormWrapper
+            defaultValues={{
+              ...initialValues,
+              area: [{ label: "Meurthe-et-Moselle", value: "54" }],
+            }}
+          >
+            {children}
+          </RequestFormWrapper>
+        </TRPCWrapper>
+      ),
+    });
+
+    const territoireRow = screen
+      .getByText(/Territoire concerné/i)
+      .closest("li");
+    expect(territoireRow).toHaveTextContent("Pas-de-Calais");
+    expect(screen.queryByText("Meurthe-et-Moselle")).not.toBeInTheDocument();
   });
 
   it("structure chaque catégorie du récapitulatif en liste (a11y)", () => {

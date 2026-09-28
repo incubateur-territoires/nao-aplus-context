@@ -164,10 +164,64 @@ export interface FullAnonymizedReportData extends AnonymizedReportData {
   maritalName: string | null;
 }
 
+export interface AnonymizedIdentityData {
+  firstName: string;
+  lastName: string;
+  maritalName: string | null;
+  birthDate: string;
+  phone: string | null;
+  nir: string | null;
+  caf: string | null;
+  nif: string | null;
+}
+
 /**
- * Génère les données anonymisées complètes d'un signalement, incluant
- * `maritalName`. À utiliser pour l'effacement RGPD (cron reports/deletion) afin
- * que tous les champs PII du modèle `Report` soient couverts.
+ * Marqueur écrit à la place du texte quand la pseudonymisation a été abandonnée.
+ * Un faux texte serait indiscernable d'un vrai signalement pour qui ne regarde
+ * pas `pseudonymizationStatus`, et empoisonnerait le corpus.
+ */
+export const ERASED_CONTENT = "Contenu supprimé";
+
+/**
+ * Identité écrite à l'effacement. Des valeurs fixes plutôt qu'inventées : un
+ * faux NIR à clé valide peut être celui d'une personne réelle, et rien ne le
+ * distinguerait d'un vrai.
+ */
+export const ANONYMIZED_IDENTITY: AnonymizedIdentityData = {
+  firstName: "Anonymisé",
+  lastName: "Anonymisé",
+  maritalName: null,
+  birthDate: "00/00/0000",
+  phone: null,
+  nir: null,
+  caf: null,
+  nif: null,
+};
+
+/** Identité inventée mais réaliste, pour peupler une base de développement. */
+function generateIdentityData(original: {
+  birthDate: string;
+  phone: string | null;
+  nir: string | null;
+  caf: string | null;
+  nif: string | null;
+  maritalName: string | null;
+}): AnonymizedIdentityData {
+  return {
+    firstName: generateFirstName(),
+    lastName: generateLastName(),
+    maritalName: original.maritalName ? generateLastName() : null,
+    birthDate: generateBirthDate(original.birthDate),
+    phone: original.phone ? generatePhone() : null,
+    nir: original.nir ? generateNIR() : null,
+    caf: original.caf ? generateCAF() : null,
+    nif: original.nif ? generateNIF() : null,
+  };
+}
+
+/**
+ * Données complètes et réalistes d'un signalement, `maritalName` compris. Pour
+ * les scripts d'ops ; l'effacement RGPD écrit `ANONYMIZED_IDENTITY`.
  */
 export function buildAnonymizedReportData(original: {
   birthDate: string;
@@ -178,7 +232,8 @@ export function buildAnonymizedReportData(original: {
   maritalName: string | null;
 }): FullAnonymizedReportData {
   return {
-    ...anonymizeReportRow(original),
-    maritalName: original.maritalName ? generateLastName() : null,
+    ...generateIdentityData(original),
+    subject: generateSubject(),
+    description: generateDescription(),
   };
 }

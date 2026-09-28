@@ -1,4 +1,4 @@
-const EMAIL_PATTERN = /[\w.+-]+@[\w-]+\.[\w.-]+/g;
+export const EMAIL_PATTERN = /[\w.+-]+@[\w-]+\.[\w.-]+/g;
 
 /**
  * Les messages d'erreur de Brevo citent souvent l'adresse rejetée, et ces messages

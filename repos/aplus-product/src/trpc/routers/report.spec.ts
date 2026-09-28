@@ -455,6 +455,7 @@ describe("reportRouter", () => {
         organizationId: MOCK_IDS.ORG_1,
         type: "FRANCE_SERVICE",
         users: [{ id: MOCK_IDS.USER_1 }, { id: MOCK_IDS.USER_2 }],
+        areas: [{ id: MOCK_IDS.AREA_1, name: "Area 1" }],
       });
     });
 
@@ -526,6 +527,65 @@ describe("reportRouter", () => {
       await expect(caller.createReport(mockInput)).rejects.toMatchObject({
         code: "UNAUTHORIZED",
       });
+    });
+
+    it("records the applicant team's area, not the one picked to filter recipients", async () => {
+      (prisma.team.findUniqueOrThrow as jest.Mock).mockResolvedValue({
+        organizationId: MOCK_IDS.ORG_1,
+        type: "FRANCE_SERVICE",
+        users: [{ id: MOCK_IDS.USER_1 }],
+        areas: [
+          { id: "area-po", name: "Pyrénées-Orientales" },
+          { id: "area-aude", name: "Aude" },
+        ],
+      });
+      const create = jest.fn().mockResolvedValue({ id: MOCK_IDS.REPORT_1 });
+      (prisma.$transaction as jest.Mock).mockImplementation(async (callback) =>
+        callback({
+          report: { create },
+          reportStatusHistory: { create: jest.fn().mockResolvedValue({}) },
+        }),
+      );
+
+      const caller = createCaller({
+        userId: MOCK_IDS.USER_1,
+        user: createMockUser(),
+      });
+      // Un client antérieur envoie encore le territoire filtré : il est ignoré.
+      const staleClientInput = {
+        ...mockInput,
+        area: [{ label: "Meurthe-et-Moselle", value: "area-54" }],
+      };
+      await caller.createReport(staleClientInput);
+
+      expect(create.mock.calls[0][0].data.area).toEqual({
+        connect: { id: "area-aude" },
+      });
+      const { checkTeamsInvitableForReport } = jest.requireMock(
+        "../middleware/authorization",
+      );
+      expect(checkTeamsInvitableForReport).toHaveBeenCalledWith(
+        "FRANCE_SERVICE",
+        [MOCK_IDS.TEAM_2],
+      );
+    });
+
+    it("throws BAD_REQUEST when the applicant team has no area", async () => {
+      (prisma.team.findUniqueOrThrow as jest.Mock).mockResolvedValue({
+        organizationId: MOCK_IDS.ORG_1,
+        type: "FRANCE_SERVICE",
+        users: [{ id: MOCK_IDS.USER_1 }],
+        areas: [],
+      });
+      const caller = createCaller({
+        userId: MOCK_IDS.USER_1,
+        user: createMockUser(),
+      });
+
+      await expect(caller.createReport(mockInput)).rejects.toMatchObject({
+        code: "BAD_REQUEST",
+      });
+      expect(prisma.$transaction).not.toHaveBeenCalled();
     });
 
     it("throws FORBIDDEN when the author is not a member of the applicant team", async () => {
@@ -992,7 +1052,6 @@ describe("reportRouter", () => {
   describe("addRequestedTeamsToReport", () => {
     it("adds requested teams to report after checking their eligibility", async () => {
       (prisma.report.findUniqueOrThrow as jest.Mock).mockResolvedValue({
-        areaId: MOCK_IDS.AREA_1,
         applicantTeam: { type: "FRANCE_SERVICE" },
       });
       (prisma.report.update as jest.Mock).mockResolvedValue({});
@@ -1012,7 +1071,7 @@ describe("reportRouter", () => {
         "../middleware/authorization",
       );
       expect(checkTeamsInvitableForReport).toHaveBeenCalledWith(
-        { areaId: MOCK_IDS.AREA_1, applicantTeamType: "FRANCE_SERVICE" },
+        "FRANCE_SERVICE",
         [MOCK_IDS.TEAM_1, MOCK_IDS.TEAM_2],
       );
       expect(prisma.report.update).toHaveBeenCalledWith({
@@ -1027,7 +1086,6 @@ describe("reportRouter", () => {
 
     it("propagates the refusal when a team is not invitable", async () => {
       (prisma.report.findUniqueOrThrow as jest.Mock).mockResolvedValue({
-        areaId: MOCK_IDS.AREA_1,
         applicantTeam: { type: "FRANCE_SERVICE" },
       });
       const { checkTeamsInvitableForReport } = jest.requireMock(

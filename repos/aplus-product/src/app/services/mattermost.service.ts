@@ -1,4 +1,5 @@
 import { createLogger } from "@/utils/logger";
+import { splitMattermostMessage } from "@/utils/split-mattermost-message";
 
 const logger = createLogger("Mattermost");
 
@@ -30,24 +31,23 @@ export async function postToMattermost(
     return { success: false, error: "MATTERMOST_WEBHOOK_URL is not defined" };
   }
 
-  const payload: MattermostMessage = {
-    text: message,
-    ...options,
-  };
-
   try {
-    const response = await fetch(webhookUrl, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(payload),
-    });
+    // Posts envoyés un par un, dans l'ordre : on s'arrête au premier échec.
+    for (const text of splitMattermostMessage(message)) {
+      const payload: MattermostMessage = { text, ...options };
+      const response = await fetch(webhookUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
+      });
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      logger.error("Webhook error", { status: response.status, errorText });
-      return { success: false, error: errorText };
+      if (!response.ok) {
+        const errorText = await response.text();
+        logger.error("Webhook error", { status: response.status, errorText });
+        return { success: false, error: errorText };
+      }
     }
 
     return { success: true };

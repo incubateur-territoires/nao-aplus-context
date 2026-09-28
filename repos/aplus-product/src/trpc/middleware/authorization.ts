@@ -554,14 +554,13 @@ export async function checkCoAuthorsInApplicantTeam(
 
 /**
  * Les équipes destinataires d'un signalement doivent remplir les mêmes
- * conditions que la liste des équipes invitables
- * (`team.getNotInvitedTeamsByReportId`) : opératrices, actives, non
- * supprimées, sur le territoire du signalement et acceptant le type de
- * l'équipe applicante. Revalidé côté serveur parce que la liste n'est qu'une
- * aide de saisie, pas une garantie. Throws FORBIDDEN if not satisfied.
+ * conditions que la liste proposée (`team.getActiveOperatorTeamsByAreaIds`) :
+ * opératrices, actives, non supprimées et acceptant le type de l'équipe
+ * applicante. Leur territoire est libre. Revalidé côté serveur parce que la
+ * liste n'est qu'une aide de saisie. Throws FORBIDDEN if not satisfied.
  */
 export async function checkTeamsInvitableForReport(
-  report: { areaId: string; applicantTeamType: TeamType },
+  applicantTeamType: TeamType,
   teamIds: string[],
 ): Promise<void> {
   if (teamIds.length === 0) return;
@@ -569,10 +568,9 @@ export async function checkTeamsInvitableForReport(
   const invitableCount = await prisma.team.count({
     where: {
       id: { in: teamIds },
-      areas: { some: { id: report.areaId } },
       role: OrganizationRole.OPERATOR,
       users: { some: {} },
-      acceptTypes: { has: report.applicantTeamType },
+      acceptTypes: { has: applicantTeamType },
       deletedAt: null,
     },
   });

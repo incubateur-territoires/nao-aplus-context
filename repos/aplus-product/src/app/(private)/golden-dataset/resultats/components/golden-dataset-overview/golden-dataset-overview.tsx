@@ -31,7 +31,13 @@ import {
   UNDETERMINED_GOLDEN_TAG,
   validateAnnotationTag,
 } from "@/utils/golden-dataset-tag";
+import {
+  closedTaxonomyReport,
+  type ItemProjection,
+} from "@/utils/golden-dataset-taxonomy";
+import { CURRENT_GOLDEN_TAXONOMY } from "@/utils/golden-dataset-taxonomy-current";
 import { formatPercentage } from "@/utils/stats-percentage";
+import { GoldenDatasetClosedTaxonomy } from "../golden-dataset-closed-taxonomy/golden-dataset-closed-taxonomy";
 
 const MISSING_TAG = "–";
 const MODEL_ICON = "fr-icon-cpu-line";
@@ -41,6 +47,8 @@ const UNCHOOSE_TAG = "Ne plus retenir ce tag";
 const REFERENCE_LABEL = "Référence";
 const RETAIN_ACTION = "Retenir";
 const AGREEMENT_TITLE = "Accord entre annotateurs";
+const CLOSED_LABEL = "Fermé";
+const UNMAPPED_TAG = "sans entrée";
 
 const AXIS_LABELS: Record<GoldenTagAxis, string> = {
   blockageTag: "Blocage",
@@ -92,6 +100,12 @@ export interface OverviewRun {
   predicted: number;
 }
 
+export interface OverviewClosedGolds {
+  taxonomyVersion: number;
+  blockageTag: string;
+  procedureTag: string;
+}
+
 export interface OverviewItem {
   position: number;
   organization: string;
@@ -101,6 +115,7 @@ export interface OverviewItem {
   goldenProcedureTag: string | null;
   annotations: OverviewAnnotation[];
   predictions: OverviewPrediction[];
+  closedGolds: OverviewClosedGolds[];
 }
 
 function renderSourceLabel(source: OverviewSource) {
@@ -271,6 +286,14 @@ export function GoldenDatasetOverview() {
     }),
   );
 
+  const freezeClosedGolds = useMutation(
+    trpc.goldenDataset.freezeClosedGolds.mutationOptions({
+      // Comme `adjudicateUnanimous` : l'entrée ne dit pas ce qui a été écrit,
+      // seul un rechargement le montre.
+      onSuccess: () => queryClient.invalidateQueries({ queryKey: overviewKey }),
+    }),
+  );
+
   if (isLoading) {
     return <p>Chargement des annotations…</p>;
   }
@@ -294,6 +317,7 @@ export function GoldenDatasetOverview() {
   const sources = buildOverviewSources(namedAnnotators, runs);
   const summary = summarizeOverview(items);
   const agreement = computeAgreement(items);
+  const closedReport = closedTaxonomyReport(items, CURRENT_GOLDEN_TAXONOMY);
   const comparedAxes = GOLDEN_TAG_AXES.filter(
     (axis) => agreement[axis].compared > 0,
   );
@@ -361,6 +385,18 @@ export function GoldenDatasetOverview() {
           </section>
         )}
       </section>
+
+      <GoldenDatasetClosedTaxonomy
+        report={closedReport}
+        total={total}
+        isFreezing={freezeClosedGolds.isPending}
+        freezeError={freezeClosedGolds.error?.message ?? null}
+        onFreeze={() =>
+          freezeClosedGolds.mutate({
+            taxonomyVersion: CURRENT_GOLDEN_TAXONOMY.version,
+          })
+        }
+      />
 
       <div className="flex flex-col gap-3">
         <div className="flex flex-wrap items-center justify-between gap-4">
@@ -444,6 +480,40 @@ export function GoldenDatasetOverview() {
             );
           }
 
+          // Le tag fermé ne se choisit pas : il se dérive du gold fin par la
+          // projection. Le changer passe par la référence ou par la liste.
+          function renderClosedAxis(
+            axis: GoldenTagAxis,
+            projection: ItemProjection | undefined,
+          ) {
+            const derived = projection?.derived[axis];
+
+            if (derived === undefined || derived.kind === "unadjudicated") {
+              return <span className="text-[#929292]">{MISSING_TAG}</span>;
+            }
+
+            if (derived.kind === "unmapped") {
+              return (
+                <span className="text-sm text-[#b34000]">{UNMAPPED_TAG}</span>
+              );
+            }
+
+            const drifted = projection?.driftedAxes.includes(axis) ?? false;
+
+            return (
+              <div className="flex flex-wrap items-center gap-2">
+                <Tag small className={NO_WRAP}>
+                  {derived.closedTag}
+                </Tag>
+                {drifted && projection?.stored && (
+                  <span className="text-sm text-[#b34000]">
+                    {`figé : ${projection.stored[axis]}`}
+                  </span>
+                )}
+              </div>
+            );
+          }
+
           function renderReferenceAxis(axis: GoldenTagAxis) {
             const tag = retained[axis];
             const isUndetermined = sameTag(tag, UNDETERMINED_GOLDEN_TAG);
@@ -514,6 +584,17 @@ export function GoldenDatasetOverview() {
                       </strong>,
                       ...GOLDEN_TAG_AXES.map((axis) =>
                         renderReferenceAxis(axis),
+                      ),
+                    ],
+                    [
+                      <strong key={CLOSED_LABEL} className={NO_WRAP}>
+                        {`${CLOSED_LABEL} v${closedReport.version}`}
+                      </strong>,
+                      ...GOLDEN_TAG_AXES.map((axis) =>
+                        renderClosedAxis(
+                          axis,
+                          closedReport.items.get(item.position),
+                        ),
                       ),
                     ],
                   ]}

@@ -19,14 +19,23 @@ const logger = createLogger("albert");
 
 // `||` plutôt que `??` : une variable vide (ALBERT_BASE_URL=) doit aussi
 // retomber sur le défaut. L'URL doit inclure le suffixe `/v1`.
-const ALBERT_BASE_URL =
-  process.env.ALBERT_BASE_URL || "https://albert.api.etalab.gouv.fr/v1";
+function albertBaseUrl(): string {
+  return process.env.ALBERT_BASE_URL || "https://albert.api.etalab.gouv.fr/v1";
+}
 
-const albert = createOpenAICompatible({
-  name: "albert",
-  baseURL: ALBERT_BASE_URL,
-  apiKey: process.env.ALBERT_API_KEY ?? "",
-});
+/**
+ * Client construit à l'appel, pas au chargement du module. Un script qui charge
+ * son `.env` après ses imports aurait sinon un client figé sur une clé vide —
+ * alors que la vérification de `albertChatModel`, qui relit l'environnement
+ * plus tard, passerait. Le symptôme est un 401 avec une clé pourtant valide.
+ */
+function albertProvider() {
+  return createOpenAICompatible({
+    name: "albert",
+    baseURL: albertBaseUrl(),
+    apiKey: process.env.ALBERT_API_KEY ?? "",
+  });
+}
 
 /**
  * Attentes dédiées au 429 (rate limit Albert). Le retry par défaut du SDK
@@ -124,11 +133,11 @@ export function albertChatModel(modelId?: string) {
   if (!model) {
     throw new Error(
       "ALBERT_MODEL manquante. Liste les modèles avec : " +
-        `curl -s ${ALBERT_BASE_URL}/models -H "Authorization: Bearer $ALBERT_API_KEY" | jq '.data[].id'`,
+        `curl -s ${albertBaseUrl()}/models -H "Authorization: Bearer $ALBERT_API_KEY" | jq '.data[].id'`,
     );
   }
   return wrapLanguageModel({
-    model: albert(model),
+    model: albertProvider()(model),
     middleware: albertMiddleware,
   });
 }

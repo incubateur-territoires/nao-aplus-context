@@ -15,6 +15,7 @@ import { getRequiredSpecificField } from "../../utils/specific-field.service";
 import { formatPhoneNumber } from "@/utils/format";
 import { generateMandatePdf } from "@/utils/generate-mandate-pdf";
 import { findUnreadableFiles } from "@/utils/file";
+import { getReportAreaFromApplicantTeam } from "@/utils/report-area";
 import { useState, useCallback, useEffect, useRef } from "react";
 
 export function InfoRow({
@@ -134,6 +135,12 @@ export function Step4() {
 
   const { data: colleagues, isLoading: isLoadingColleagues } = useQuery(
     trpc.report.getColleagues.queryOptions(applicantTeamId),
+  );
+  const { data: currentUser } = useQuery(
+    trpc.user.getCurrentUser.queryOptions(),
+  );
+  const reportArea = getReportAreaFromApplicantTeam(
+    currentUser?.teams.find((team) => team.id === applicantTeamId)?.areas ?? [],
   );
 
   // Pré-remplit tous les co-auteurs par défaut. Le ref garantit qu'on ne
@@ -263,12 +270,7 @@ export function Step4() {
             ?.map((t) => t.label)
             .join("\n")}
         />
-        <InfoRow
-          label="Territoire concerné"
-          value={getValues("area")
-            ?.map((t) => t.label)
-            .join("\n")}
-        />
+        <InfoRow label="Territoire concerné" value={reportArea?.name} />
         <InfoRow
           label="Équipe(s) opérateur à contacter"
           value={getValues("requestedTeams")

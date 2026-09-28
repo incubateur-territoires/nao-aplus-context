@@ -47,7 +47,7 @@ describe("statsRouter", () => {
     jest.resetAllMocks();
   });
 
-  it("counts DELETED reports as « Supprimé », last in reportsByStatus", async () => {
+  it("folds DELETED reports into « Fermé » in reportsByStatus", async () => {
     queryRaw.mockImplementation(async (query: Prisma.Sql) =>
       query.sql.includes('"reportStatus" AS status')
         ? [
@@ -61,8 +61,8 @@ describe("statsRouter", () => {
     const { reportsByStatus } = await createAnonymousCaller().getDashboard({});
 
     expect(reportsByStatus).toEqual({
-      labels: ["En attente de prise en charge", "Fermé", "Supprimé"],
-      values: [1, 5, 3],
+      labels: ["En attente de prise en charge", "Fermé"],
+      values: [1, 8],
     });
   });
 
@@ -190,15 +190,15 @@ describe("statsRouter", () => {
     });
   });
 
-  it("keeps the per-team table on the IN_TREATMENT delay", async () => {
+  it("aligns the per-team table on the first operator action", async () => {
     queryRaw.mockResolvedValue([]);
 
     await createAnonymousCaller().getCareDelaysByTeam({});
 
     const sql = executedSql();
     expect(sql).toHaveLength(1);
-    expect(sql[0]).toContain('"inTreatmentDelayBusinessDays"');
-    expect(sql[0]).toContain('"hasInTreatment"');
-    expect(sql[0]).not.toContain('"takenInChargeDelayBusinessDays"');
+    expect(sql[0]).toContain('"takenInChargeDelayBusinessDays"');
+    expect(sql[0]).toContain('"hasTakenInCharge"');
+    expect(sql[0]).not.toContain("inTreatment");
   });
 });

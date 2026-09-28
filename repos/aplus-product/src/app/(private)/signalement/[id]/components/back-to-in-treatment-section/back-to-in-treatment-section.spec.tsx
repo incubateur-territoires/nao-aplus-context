@@ -119,6 +119,7 @@ const baseReport = {
   updatedAt: new Date(),
   lastAnswerAt: null,
   overdueAt: null,
+  pseudonymizationStatus: null,
 };
 
 describe("BackToInTreatmentSection", () => {

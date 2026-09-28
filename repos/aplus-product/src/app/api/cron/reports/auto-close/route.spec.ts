@@ -373,8 +373,12 @@ describe("GET /api/cron/reports/auto-close", () => {
       expect(mockPostToMattermost).toHaveBeenCalledWith(
         expect.stringContaining("Fermeture automatique"),
       );
+      // Un compteur, pas la liste : les identifiants vont dans les logs.
       expect(mockPostToMattermost).toHaveBeenCalledWith(
-        expect.stringContaining("r-1"),
+        expect.stringContaining("**1** signalement(s)"),
+      );
+      expect(mockPostToMattermost).toHaveBeenCalledWith(
+        expect.not.stringContaining("r-1"),
       );
     });
 

@@ -1,6 +1,7 @@
 "use client";
 
 import { type ColumnDef } from "@tanstack/react-table";
+import { TAKEN_IN_CHARGE_DESCRIPTION } from "@/app/constant/stats-descriptions";
 import { Alert } from "@codegouvfr/react-dsfr/Alert";
 import { ActionMenu } from "@/app/component/action-menu/action-menu";
 import { DataTable } from "@/app/component/data-table/data-table";
@@ -26,22 +27,22 @@ function formatDelay(days: number | null): string {
 }
 
 /** Taux de prise en charge sous N jours ouvrés, rapporté aux signalements pris en charge. */
-function formatRate(count: number, inTreatmentCount: number): string {
-  return inTreatmentCount === 0
+function formatRate(count: number, takenInChargeCount: number): string {
+  return takenInChargeCount === 0
     ? "—"
-    : formatPercentage(count, inTreatmentCount);
+    : formatPercentage(count, takenInChargeCount);
 }
 
 /**
  * Cellule « nombre au-dessus, taux en dessous » des colonnes « en moins de N
  * jours ouvrés » (cf. maquette Figma : les deux valeurs, pas l'une ou l'autre).
  */
-function renderCountAndRate(count: number, inTreatmentCount: number) {
+function renderCountAndRate(count: number, takenInChargeCount: number) {
   return (
     <span className="flex flex-col items-end">
       <span>{count}</span>
       <span className="text-mention-grey text-sm">
-        {formatRate(count, inTreatmentCount)}
+        {formatRate(count, takenInChargeCount)}
       </span>
     </span>
   );
@@ -59,7 +60,7 @@ const COLUMNS: ColumnDef<CareDelayTeamRow>[] = [
     meta: { sortType: "numeric", cellClassName: "text-right" },
   },
   {
-    accessorKey: "inTreatmentCount",
+    accessorKey: "takenInChargeCount",
     header: "Nb. de sign. pris en charge",
     meta: { sortType: "numeric", cellClassName: "text-right" },
   },
@@ -94,9 +95,9 @@ const COLUMNS: ColumnDef<CareDelayTeamRow>[] = [
     id: "underTwoBusinessDaysRate",
     // Trié sur le taux (proportion), la cellule affiche le pourcentage formaté.
     accessorFn: (row) =>
-      row.inTreatmentCount === 0
+      row.takenInChargeCount === 0
         ? -1
-        : row.underTwoBusinessDaysCount / row.inTreatmentCount,
+        : row.underTwoBusinessDaysCount / row.takenInChargeCount,
     header: () => (
       <span>
         En moins de 2 jours ouvrés
@@ -107,16 +108,16 @@ const COLUMNS: ColumnDef<CareDelayTeamRow>[] = [
     cell: ({ row }) =>
       renderCountAndRate(
         row.original.underTwoBusinessDaysCount,
-        row.original.inTreatmentCount,
+        row.original.takenInChargeCount,
       ),
     meta: { sortType: "numeric", cellClassName: "text-right" },
   },
   {
     id: "underThreeBusinessDaysRate",
     accessorFn: (row) =>
-      row.inTreatmentCount === 0
+      row.takenInChargeCount === 0
         ? -1
-        : row.underThreeBusinessDaysCount / row.inTreatmentCount,
+        : row.underThreeBusinessDaysCount / row.takenInChargeCount,
     header: () => (
       <span>
         En moins de 3 jours ouvrés
@@ -127,7 +128,7 @@ const COLUMNS: ColumnDef<CareDelayTeamRow>[] = [
     cell: ({ row }) =>
       renderCountAndRate(
         row.original.underThreeBusinessDaysCount,
-        row.original.inTreatmentCount,
+        row.original.takenInChargeCount,
       ),
     meta: { sortType: "numeric", cellClassName: "text-right" },
   },
@@ -159,8 +160,9 @@ interface CareDelaysTableProps {
 }
 
 /**
- * Bloc « Délais de prise en charge » : tableau par équipe opérateur sollicitée
- * (prise en charge = premier passage au statut « En cours de traitement »).
+ * Bloc « Délais de prise en charge » : tableau par équipe opérateur sollicitée,
+ * même définition de la prise en charge que les graphiques (premier geste de
+ * l'opérateur). Le délai est celui du signalement, pas de l'équipe.
  * Tri et pagination côté client (une ligne par équipe).
  */
 export function CareDelaysTable({
@@ -181,13 +183,13 @@ export function CareDelaysTable({
         rows.map((row) => [
           row.teamName,
           row.totalReports,
-          row.inTreatmentCount,
+          row.takenInChargeCount,
           row.avgDelayBusinessDays ?? "",
           row.underOneBusinessDayCount,
           row.underTwoBusinessDaysCount,
-          formatRate(row.underTwoBusinessDaysCount, row.inTreatmentCount),
+          formatRate(row.underTwoBusinessDaysCount, row.takenInChargeCount),
           row.underThreeBusinessDaysCount,
-          formatRate(row.underThreeBusinessDaysCount, row.inTreatmentCount),
+          formatRate(row.underThreeBusinessDaysCount, row.takenInChargeCount),
         ]),
       );
     }
@@ -195,7 +197,12 @@ export function CareDelaysTable({
 
   return (
     <section className="flex flex-col gap-10 bg-white p-6 md:p-20">
-      <h2 className="fr-h4 mb-0">{TITLE}</h2>
+      <div className="flex flex-col gap-2">
+        <h2 className="fr-h4 mb-0">{TITLE}</h2>
+        <p className="fr-text--sm mb-0 text-(--text-mention-grey)">
+          {TAKEN_IN_CHARGE_DESCRIPTION}
+        </p>
+      </div>
 
       {hasError ? (
         <Alert

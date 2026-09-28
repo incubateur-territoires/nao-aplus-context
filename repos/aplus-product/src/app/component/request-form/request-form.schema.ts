@@ -149,15 +149,19 @@ export const reportFormSchema = z.object({
   ),
 });
 
-export const reportFormSchemaWithFileObjects = reportFormSchema.extend({
-  files: z.array(
-    z.object({
-      id: z.string(),
-      name: z.string(),
-      size: z.number(),
-      type: z.string(),
-      lastModified: z.date(),
-      // add more fields as needed
-    }),
-  ),
-});
+// `area` ne filtre que les équipes proposées : le serveur déduit le territoire
+// de l'équipe autrice.
+export const reportFormSchemaWithFileObjects = reportFormSchema
+  .omit({ area: true })
+  .extend({
+    files: z.array(
+      z.object({
+        id: z.string(),
+        name: z.string(),
+        size: z.number(),
+        type: z.string(),
+        lastModified: z.date(),
+        // add more fields as needed
+      }),
+    ),
+  });

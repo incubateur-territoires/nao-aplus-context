@@ -129,6 +129,7 @@ const mockRequest = {
   updatedAt: new Date(),
   lastAnswerAt: null,
   overdueAt: null,
+  pseudonymizationStatus: null,
 };
 
 describe("CloseSection", () => {

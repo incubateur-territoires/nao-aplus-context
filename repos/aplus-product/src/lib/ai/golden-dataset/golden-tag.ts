@@ -1,6 +1,12 @@
 import { createHash } from "node:crypto";
 import { generateText } from "ai";
 import type { Step } from "@/types/ai-pipeline";
+import {
+  renderFineLabelPrompt,
+  renderTaxonomyPrompt,
+} from "@/utils/golden-dataset-taxonomy";
+import type { RunModeKind } from "@/utils/golden-dataset-scoring";
+import { CURRENT_GOLDEN_TAXONOMY } from "@/utils/golden-dataset-taxonomy-current";
 import { normalizeSearchQuery } from "@/utils/normalize";
 import { albertChatModel } from "../providers";
 import { extractAxisValues } from "../tag-axes";
@@ -39,9 +45,62 @@ Sujet : {{subject}}
 
 Description : {{description}}`;
 
+export interface SystemPromptChoice {
+  /** Annoncée par le script avant le premier appel. */
+  readonly name: string;
+  readonly mode: RunModeKind;
+  /** Version de la liste fermée exposée par la consigne ; `null` en texte libre. */
+  readonly taxonomyVersion: number | null;
+  readonly systemPrompt: string;
+}
+
+/**
+ * Stricte à dessein : deviner ouvrirait une série sous une consigne que
+ * personne n'a choisie.
+ */
+export function selectSystemPrompt(
+  taxonomy: string | undefined,
+): SystemPromptChoice {
+  if (taxonomy === undefined) {
+    return {
+      name: "texte libre",
+      mode: "free",
+      taxonomyVersion: null,
+      systemPrompt: GOLDEN_TAG_SYSTEM_PROMPT,
+    };
+  }
+
+  if (taxonomy === "closed") {
+    return {
+      name: `liste fermée v${CURRENT_GOLDEN_TAXONOMY.version}`,
+      mode: "closed",
+      taxonomyVersion: CURRENT_GOLDEN_TAXONOMY.version,
+      systemPrompt: renderTaxonomyPrompt(CURRENT_GOLDEN_TAXONOMY),
+    };
+  }
+
+  if (taxonomy === "fine") {
+    return {
+      name: `labels fins rangés par tag fermé v${CURRENT_GOLDEN_TAXONOMY.version}`,
+      mode: "fine",
+      taxonomyVersion: CURRENT_GOLDEN_TAXONOMY.version,
+      systemPrompt: renderFineLabelPrompt(CURRENT_GOLDEN_TAXONOMY),
+    };
+  }
+
+  throw new Error(
+    `TAXONOMY « ${taxonomy} » inconnue : « closed » pour la liste fermée, « fine » pour les labels fins, rien pour le texte libre.`,
+  );
+}
+
 /** Identité d'une série comparable, celle que porte l'unicité de `GoldenDatasetRun`. */
 export interface GoldenTagRecipe {
   readonly model: string;
+  /**
+   * Envoyée par le step et hachée par le script : la consigne stockée avec la
+   * série est par construction celle qui part au modèle.
+   */
+  readonly systemPrompt: string;
   readonly temperature: number;
 }
 
@@ -130,7 +189,7 @@ export const goldenTagStep: Step<GoldenTagInput, GoldenTagOutput> = {
     const { text } = await generateText({
       model: albertChatModel(recipe.model),
       temperature: recipe.temperature,
-      system: GOLDEN_TAG_SYSTEM_PROMPT,
+      system: recipe.systemPrompt,
       prompt: renderPrompt(GOLDEN_TAG_USER_TEMPLATE, item),
     });
     return { ...parseGoldenTags(text), rawOutput: text };

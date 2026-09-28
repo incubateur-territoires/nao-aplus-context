@@ -203,7 +203,9 @@ export async function GET(request: NextRequest) {
     after(async () => {
       const emails = await sendOverdueEmails(reportsToUpdate);
       try {
-        await postToMattermost(buildOverdueReportsMessage(reportIds, emails));
+        await postToMattermost(
+          buildOverdueReportsMessage(reportIds.length, emails),
+        );
       } catch (mmError) {
         logger.error("Failed to post to Mattermost", { error: mmError });
       }

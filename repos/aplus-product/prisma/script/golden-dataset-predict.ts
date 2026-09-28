@@ -18,14 +18,13 @@ if (existsSync(envPath)) {
 import prisma from "@/lib/prisma";
 import { loadBlindCorpus } from "@/lib/ai/golden-dataset/corpus";
 import {
-  GOLDEN_TAG_SYSTEM_PROMPT,
   GOLDEN_TAG_USER_TEMPLATE,
   goldenTagStep,
   promptHash,
+  selectSystemPrompt,
   type GoldenTagRecipe,
 } from "@/lib/ai/golden-dataset/golden-tag";
-import { AlbertQuotaError } from "@/lib/ai/providers";
-import { createUsageTotals, runWithUsage } from "@/lib/ai/usage";
+import { predictAll } from "@/lib/ai/golden-dataset/predict-loop";
 import { checkPredictTarget } from "@/utils/golden-dataset-predict-guard";
 
 /**
@@ -42,8 +41,12 @@ import { checkPredictTarget } from "@/utils/golden-dataset-predict-guard";
  * température), pas par son exécution. Relancer la même commande reprend la
  * série là où elle s'est arrêtée au lieu d'en ouvrir une seconde.
  *
- * Lancement :
+ * Lancement en texte libre, sur la liste fermée, ou sur les labels fins :
  *   ALBERT_MODEL=<id> bun run golden-dataset:predict
+ *   TAXONOMY=closed ALBERT_MODEL=<id> bun run golden-dataset:predict
+ *   TAXONOMY=fine ALBERT_MODEL=<id> bun run golden-dataset:predict
+ * Chaque consigne a son propre hash, donc sa propre série ; toute autre valeur
+ * de TAXONOMY est refusée avant le moindre appel.
  * Options (env) : TEMPERATURE=0.2 CONCURRENCY=3 THROTTLE_MS=200 MAX_RETRIES=3
  *                 LIMIT=<n> pour un essai sur les premiers items seulement
  */
@@ -54,40 +57,8 @@ const THROTTLE_MS = Number(process.env.THROTTLE_MS ?? 200);
 const MAX_RETRIES = Number(process.env.MAX_RETRIES ?? 3);
 const LIMIT = process.env.LIMIT ? Number(process.env.LIMIT) : undefined;
 
-function sleep(ms: number): Promise<void> {
-  return new Promise((r) => setTimeout(r, ms));
-}
-
-async function withRetry<T>(fn: () => Promise<T>, label: string): Promise<T> {
-  let delay = 2000;
-  for (let attempt = 0; ; attempt++) {
-    try {
-      return await fn();
-    } catch (error) {
-      // Le quota épuisé ne se rattrape pas en réessayant : les attentes du
-      // provider ont déjà couvert la fenêtre de rate limit.
-      if (error instanceof AlbertQuotaError) throw error;
-      if (attempt >= MAX_RETRIES) throw error;
-      console.warn(
-        `  ⚠️ ${label} : essai ${attempt + 1}/${MAX_RETRIES} échoué, retry dans ${delay}ms`,
-      );
-      await sleep(delay);
-      delay *= 2;
-    }
-  }
-}
-
-function median(values: number[]): number {
-  if (values.length === 0) return 0;
-  const sorted = [...values].sort((a, b) => a - b);
-  const middle = Math.floor(sorted.length / 2);
-  return sorted.length % 2 === 1
-    ? sorted[middle]
-    : Math.round((sorted[middle - 1] + sorted[middle]) / 2);
-}
-
 async function resolveRun(recipe: GoldenTagRecipe): Promise<string> {
-  const hash = promptHash(GOLDEN_TAG_SYSTEM_PROMPT, GOLDEN_TAG_USER_TEMPLATE);
+  const hash = promptHash(recipe.systemPrompt, GOLDEN_TAG_USER_TEMPLATE);
   const run = await prisma.goldenDatasetRun.upsert({
     where: {
       model_promptHash_temperature: {
@@ -98,7 +69,7 @@ async function resolveRun(recipe: GoldenTagRecipe): Promise<string> {
     },
     create: {
       model: recipe.model,
-      systemPrompt: GOLDEN_TAG_SYSTEM_PROMPT,
+      systemPrompt: recipe.systemPrompt,
       userTemplate: GOLDEN_TAG_USER_TEMPLATE,
       promptHash: hash,
       temperature: recipe.temperature,
@@ -125,9 +96,17 @@ async function main() {
     );
   }
 
-  console.log("=== Prédictions du golden dataset (tagage à blanc) ===\n");
+  const taxonomy = process.env.TAXONOMY;
+  const { name: consigne, systemPrompt } = selectSystemPrompt(taxonomy);
 
-  const recipe: GoldenTagRecipe = { model, temperature: TEMPERATURE };
+  console.log("=== Prédictions du golden dataset (tagage à blanc) ===\n");
+  console.log(`Consigne : ${consigne}.`);
+
+  const recipe: GoldenTagRecipe = {
+    model,
+    systemPrompt,
+    temperature: TEMPERATURE,
+  };
   const runId = await resolveRun(recipe);
 
   const corpus = await loadBlindCorpus(runId);
@@ -140,80 +119,48 @@ async function main() {
     `À prédire : ${items.length} item(s) (concurrence ${CONCURRENCY}).\n`,
   );
 
-  const latencies: number[] = [];
-  let nextIndex = 0;
-  let processed = 0;
-  let failed = 0;
-  let inputTokens = 0;
-  let outputTokens = 0;
-  let calls = 0;
-  let quotaExhausted = false;
-
-  async function worker(): Promise<void> {
-    while (!quotaExhausted) {
-      const index = nextIndex++;
-      if (index >= items.length) break;
-      const item = items[index];
-      const totals = createUsageTotals();
-      try {
-        const output = await runWithUsage(totals, () =>
-          withRetry(() => goldenTagStep.run({ item, recipe }), item.id),
-        );
-        await prisma.goldenDatasetPrediction.upsert({
-          where: { runId_itemId: { runId, itemId: item.id } },
-          create: {
-            runId,
-            itemId: item.id,
-            blockageTag: output.blockageTag,
-            procedureTag: output.procedureTag,
-            rawOutput: output.rawOutput,
-            latencyMs: totals.latencyMs,
-            inputTokens: totals.inputTokens,
-            outputTokens: totals.outputTokens,
-          },
-          // La première prédiction gagne : deux workers qui viseraient le même
-          // item n'en écrasent pas le résultat.
-          update: {},
-        });
-        latencies.push(totals.latencyMs);
-      } catch (error) {
-        if (error instanceof AlbertQuotaError) {
-          quotaExhausted = true;
-          console.error(`\n⛔ ${error.message}`);
-        } else {
-          failed++;
-          console.warn(
-            `  ⚠️ ${item.id} : échec définitif, aucune prédiction écrite (${(error as Error).message})`,
-          );
-        }
-      }
-      inputTokens += totals.inputTokens;
-      outputTokens += totals.outputTokens;
-      calls += totals.calls;
-      processed++;
-      if (processed % 10 === 0 || processed === items.length) {
-        console.log(`  ${processed}/${items.length} traités`);
-      }
-      if (THROTTLE_MS > 0) await sleep(THROTTLE_MS);
-    }
-  }
-
-  await Promise.all(
-    Array.from({ length: Math.max(1, CONCURRENCY) }, () => worker()),
+  const summary = await predictAll(
+    items,
+    (item) => goldenTagStep.run({ item, recipe }),
+    async (item, output, usage) => {
+      await prisma.goldenDatasetPrediction.upsert({
+        where: { runId_itemId: { runId, itemId: item.id } },
+        create: {
+          runId,
+          itemId: item.id,
+          blockageTag: output.blockageTag,
+          procedureTag: output.procedureTag,
+          rawOutput: output.rawOutput,
+          latencyMs: usage.latencyMs,
+          inputTokens: usage.inputTokens,
+          outputTokens: usage.outputTokens,
+        },
+        // La première prédiction gagne : deux workers qui viseraient le même
+        // item n'en écrasent pas le résultat.
+        update: {},
+      });
+    },
+    {
+      concurrency: CONCURRENCY,
+      throttleMs: THROTTLE_MS,
+      maxRetries: MAX_RETRIES,
+      retryDelayMs: 2000,
+    },
   );
 
   const predicted = await prisma.goldenDatasetPrediction.count({
     where: { runId },
   });
   const corpusSize = await prisma.goldenDatasetItem.count();
+  const taxonomyEnv = taxonomy === undefined ? "" : `TAXONOMY=${taxonomy} `;
 
   console.log(
-    `\n✅ Terminé. ${processed} item(s) traité(s), ${failed} échec(s).\n` +
+    `\n✅ Terminé. ${summary.processed} item(s) traité(s), ${summary.failed} échec(s).\n` +
       `   Complétude de la série : ${predicted}/${corpusSize} item(s) du corpus.\n` +
-      `   Tokens : ${inputTokens} en entrée, ${outputTokens} en sortie.\n` +
-      `   Requêtes consommées sur le quota Albert : ${calls} (tentatives rejetées comprises).\n` +
-      `   Latence médiane : ${median(latencies)} ms.\n` +
-      `   Reprise : ALBERT_MODEL=${model} TEMPERATURE=${TEMPERATURE} bun run golden-dataset:predict`,
+      `   Tokens : ${summary.inputTokens} en entrée, ${summary.outputTokens} en sortie.\n` +
+      `   Requêtes consommées sur le quota Albert : ${summary.calls} (tentatives rejetées comprises).\n` +
+      `   Latence médiane : ${summary.medianLatencyMs} ms.\n` +
+      `   Reprise : ${taxonomyEnv}ALBERT_MODEL=${model} TEMPERATURE=${TEMPERATURE} bun run golden-dataset:predict`,
   );
 }
 

@@ -1,6 +1,7 @@
 import { generateText } from "ai";
 import type { Step } from "@/types/ai-pipeline";
 import { albertChatModel } from "../providers";
+import { parseLlmList } from "./parse-list";
 import type { SummarizeInput } from "./summarize";
 
 /**
@@ -31,21 +32,7 @@ Règles impératives :
 
 /** Parse la liste de noms renvoyée par le LLM en tableau nettoyé. */
 export function parseExtractedNames(text: string): string[] {
-  const trimmed = text.trim();
-  if (/^aucun\.?$/i.test(trimmed)) return [];
-
-  const seen = new Set<string>();
-  const names: string[] = [];
-  for (const raw of trimmed.split(/[,\n]/)) {
-    const name = raw.trim().replace(/^[-•*\s]+/, "");
-    // Ignore le vide et les jetons de pseudonymisation résiduels.
-    if (!name || /^\[[A-Z]+_\d+\]$/.test(name)) continue;
-    const key = name.toLocaleLowerCase();
-    if (seen.has(key)) continue;
-    seen.add(key);
-    names.push(name);
-  }
-  return names;
+  return parseLlmList(text);
 }
 
 export const extractNamesStep: Step<SummarizeInput, ExtractNamesOutput> = {

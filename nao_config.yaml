@@ -72,6 +72,7 @@ repos:
       - "docs/**"
       - "specs/**"
       - "src/**"
+      - ".claude/skills/verify-aplus/features/**"
     exclude:
       - "src/generated/**"
       - "src/dsfr-bootstrap/**"

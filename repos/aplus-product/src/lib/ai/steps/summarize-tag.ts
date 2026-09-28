@@ -11,9 +11,10 @@ import type { SummarizeInput } from "./summarize";
 
 /**
  * Étape combinée résumé + tagage libre, en UN appel LLM là où `summarizeStep`
- * puis `freeTagStep` en faisaient deux. Motivation : le quota Albert se compte
- * en requêtes/jour (offre Expérimentation : 1 000/j) — fusionner divise le
- * coût par signalement. Mêmes règles que les deux steps d'origine : résumé
+ * puis `freeTagStep` en faisaient deux. Écrite sous l'offre Expérimentation et
+ * ses 1 000 requêtes/jour ; l'offre Production limitée en autorise 50 000, donc
+ * la fusion ne se justifie plus par le quota — elle réduit encore la latence.
+ * Mêmes règles que les deux steps d'origine : résumé
  * factuel 2-4 phrases, un libellé par axe, réutilisation des libellés déjà
  * émergés (`knownLabels`).
  */

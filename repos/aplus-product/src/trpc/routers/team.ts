@@ -28,7 +28,6 @@ import {
   checkApplicantTeamAccess,
   checkManagerCreatesInOwnOrganization,
   checkOrganizationAccess,
-  checkReportAccess,
   checkSupervisorScopeForTeam,
   checkTeamAccess,
   checkTeamModifyAccess,
@@ -198,43 +197,6 @@ export const teamRouter = createTRPCRouter({
       });
     }),
 
-  // get not invited teams (only operator teams) in same report id (so same areaId)
-  getNotInvitedTeamsByReportId: protectedProcedure
-    .input(z.object({ reportId: z.string() }))
-    .query(async ({ input, ctx }) => {
-      await checkReportAccess(ctx, input.reportId);
-      const report = await prisma.report.findUnique({
-        where: { id: input.reportId },
-        include: {
-          area: true,
-          requestedTeams: true,
-          applicantTeam: { select: { type: true } },
-        },
-      });
-      if (!report) {
-        return [];
-      }
-      return prisma.team.findMany({
-        where: {
-          areas: { some: { id: report.areaId } },
-          role: OrganizationRole.OPERATOR,
-          id: { not: { in: report.requestedTeams.map((team) => team.id) } },
-          users: {
-            some: {},
-          },
-          acceptTypes: { has: report.applicantTeam.type },
-          deletedAt: null,
-        },
-        include: {
-          organization: {
-            include: {
-              specificFields: true,
-              tags: true,
-            },
-          },
-        },
-      });
-    }),
   // Get teams with OPERATOR role that have at least one user and cover the given areas
   getActiveOperatorTeamsByAreaIds: protectedProcedure
     .input(

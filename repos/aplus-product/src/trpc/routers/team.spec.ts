@@ -14,7 +14,6 @@ import {
 import {
   checkApplicantTeamAccess,
   checkOrganizationAccess,
-  checkReportAccess,
   checkTeamAccess,
   checkTeamModifyAccess,
 } from "../middleware/authorization";
@@ -23,7 +22,6 @@ jest.mock("../middleware/authorization", () => ({
   checkApplicantTeamAccess: jest.fn(),
   checkManagerCreatesInOwnOrganization: jest.fn(),
   checkOrganizationAccess: jest.fn(),
-  checkReportAccess: jest.fn(),
   checkTeamAccess: jest.fn(),
   checkTeamModifyAccess: jest.fn(),
 }));
@@ -256,87 +254,6 @@ describe("teamRouter", () => {
         }),
       ).rejects.toMatchObject({ code: "FORBIDDEN" });
       expect(prisma.team.findMany).not.toHaveBeenCalled();
-    });
-  });
-
-  describe("getNotInvitedTeamsByReportId", () => {
-    it("throws FORBIDDEN when access is denied", async () => {
-      (checkReportAccess as jest.Mock).mockRejectedValueOnce(
-        new (jest.requireActual("@trpc/server").TRPCError)({
-          code: "FORBIDDEN",
-          message: "Vous n'avez pas accès à ce signalement.",
-        }),
-      );
-
-      const caller = createCaller({
-        userId: MOCK_IDS.USER_1,
-        user: createMockUser(),
-      });
-
-      await expect(
-        caller.getNotInvitedTeamsByReportId({
-          reportId: MOCK_IDS.REPORT_1,
-        }),
-      ).rejects.toMatchObject({
-        code: "FORBIDDEN",
-      });
-      expect(prisma.report.findUnique).not.toHaveBeenCalled();
-    });
-
-    it("returns empty array when report not found", async () => {
-      (prisma.report.findUnique as jest.Mock).mockResolvedValue(null);
-
-      const caller = createCaller({
-        userId: MOCK_IDS.USER_1,
-        user: createMockUser(),
-      });
-
-      const result = await caller.getNotInvitedTeamsByReportId({
-        reportId: MOCK_IDS.REPORT_1,
-      });
-
-      expect(result).toEqual([]);
-    });
-
-    it("returns operator teams not already invited", async () => {
-      const mockReport = {
-        id: MOCK_IDS.REPORT_1,
-        areaId: MOCK_IDS.AREA_1,
-        area: { id: MOCK_IDS.AREA_1 },
-        requestedTeams: [{ id: MOCK_IDS.TEAM_1 }],
-        applicantTeam: { type: TeamType.FRANCE_SERVICE },
-      };
-      (prisma.report.findUnique as jest.Mock).mockResolvedValue(mockReport);
-      (prisma.team.findMany as jest.Mock).mockResolvedValue([mockTeam2]);
-
-      const caller = createCaller({
-        userId: MOCK_IDS.USER_1,
-        user: createMockUser(),
-      });
-
-      const result = await caller.getNotInvitedTeamsByReportId({
-        reportId: MOCK_IDS.REPORT_1,
-      });
-
-      expect(result).toEqual([mockTeam2]);
-      expect(prisma.team.findMany).toHaveBeenCalledWith({
-        where: {
-          areas: { some: { id: MOCK_IDS.AREA_1 } },
-          role: OrganizationRole.OPERATOR,
-          id: { not: { in: [MOCK_IDS.TEAM_1] } },
-          users: { some: {} },
-          acceptTypes: { has: TeamType.FRANCE_SERVICE },
-          deletedAt: null,
-        },
-        include: {
-          organization: {
-            include: {
-              specificFields: true,
-              tags: true,
-            },
-          },
-        },
-      });
     });
   });
 

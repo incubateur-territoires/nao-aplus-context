@@ -4,7 +4,6 @@ import { useTRPC } from "@/trpc/client";
 import { TeamWithIncludes } from "@/types/request-group-selection";
 
 interface UseGroupFilteringParams {
-  reportId?: string;
   areaIds?: string[];
   applicantTeamId?: string;
 }
@@ -16,27 +15,17 @@ export function useGroupFiltering(
   const trpc = useTRPC();
   const [selectedFilters, setSelectedFilters] = useState<string[]>([]);
 
-  // Fetch teams based on what parameter is provided
-  const { data: teamsByReport, isLoading: isLoadingByReport } = useQuery({
-    ...trpc.team.getNotInvitedTeamsByReportId.queryOptions({
-      reportId: params.reportId ?? "",
-    }),
-    enabled: !!params.reportId,
-  });
-
-  const { data: teamsByArea, isLoading: isLoadingByArea } = useQuery({
-    ...trpc.team.getActiveOperatorTeamsByAreaIds.queryOptions({
-      areaIds: params.areaIds ?? [],
-      applicantTeamId: params.applicantTeamId ?? "",
-    }),
-    enabled:
-      !!params.areaIds && params.areaIds.length > 0 && !!params.applicantTeamId,
-  });
-
-  const notInvitedTeams = params.reportId ? teamsByReport : teamsByArea;
-  const isLoadingNotInvitedTeams = params.reportId
-    ? isLoadingByReport
-    : isLoadingByArea;
+  const { data: notInvitedTeams, isLoading: isLoadingNotInvitedTeams } =
+    useQuery({
+      ...trpc.team.getActiveOperatorTeamsByAreaIds.queryOptions({
+        areaIds: params.areaIds ?? [],
+        applicantTeamId: params.applicantTeamId ?? "",
+      }),
+      enabled:
+        !!params.areaIds &&
+        params.areaIds.length > 0 &&
+        !!params.applicantTeamId,
+    });
 
   const notInvitedTeamsWithTags = useMemo(() => {
     return (

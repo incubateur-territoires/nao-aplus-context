@@ -55,6 +55,14 @@ enum ou d'une transition de statut plutôt que de la deviner :
 Certains fichiers dépassent la limite de lecture : cherche avec `grep` plutôt que de les lire en entier.
 
 **Où chercher en premier** (va droit au bon fichier, n'explore pas l'arborescence) :
+- **Toute question sur une fonctionnalité ou une page** : commence par la carte des
+  fonctionnalités, `.claude/skills/verify-aplus/features/`. `README.md` résume le domaine et
+  liste les fiches (authentification, liste et détail des signalements, création, équipes,
+  utilisateurs et supervision, statistiques publiques, golden dataset). Chaque fiche donne le
+  comportement visible, les sous-fonctionnalités, le chemin côté utilisateur et des « Gotchas »
+  qui pointent vers le code (droits d'accès, cas limites). Ignore les sections
+  « Driving it with agent-browser » et les consignes de pilotage : elles servent aux tests.
+  Ne descends dans `src/` que si la fiche ne répond pas.
 - Une page de l'appli : l'URL donne le dossier. `/equipes/…` → `src/app/(private)/equipes/[id]/`,
   `/signalement/…` → `src/app/(private)/signalement/[id]/`, idem pour `utilisateurs`,
   `tous-les-signalements`, `administration`, `mon-profil`.

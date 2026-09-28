@@ -80,10 +80,11 @@ async function processAutoClose(reportsToClose: ReportToClose[]) {
   logger.info("Signalements automatiquement fermés", {
     closed: totalClosed,
     emailErrors: emails.failures.length,
+    reportIds: allClosedIds,
   });
 
   try {
-    await postToMattermost(buildAutoClosedReportsMessage(allClosedIds, emails));
+    await postToMattermost(buildAutoClosedReportsMessage(totalClosed, emails));
   } catch (mmError) {
     logger.error("Failed to post to Mattermost", { error: mmError });
   }

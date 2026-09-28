@@ -153,6 +153,7 @@ describe("Informations", () => {
     colleagues: [],
     lastAnswerAt: null,
     overdueAt: null,
+    pseudonymizationStatus: null,
     answers: [],
     statusHistory: [],
   };

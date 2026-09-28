@@ -554,7 +554,7 @@ export function createMockCareDelayTeamRow(
     teamId: "team-1",
     teamName: "CAF Aisne",
     totalReports: 10,
-    inTreatmentCount: 8,
+    takenInChargeCount: 8,
     avgDelayBusinessDays: 1.5,
     underOneBusinessDayCount: 2,
     underTwoBusinessDaysCount: 5,

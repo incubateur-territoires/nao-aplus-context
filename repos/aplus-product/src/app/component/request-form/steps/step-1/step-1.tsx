@@ -167,7 +167,8 @@ export function Step1() {
               stateRelatedMessage={
                 form.formState.errors.area?.message as string
               }
-              label={<>Territoire concerné</>}
+              label={<>Territoire des équipes opérateur</>}
+              hint="Changez de territoire pour contacter aussi des équipes d'un autre département. Les équipes cochées restent sélectionnées."
               className="w-full"
               nativeSelectProps={{
                 ref: stripEmptyAriaDescribedBy,

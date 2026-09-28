@@ -109,7 +109,7 @@ const MAX_AGGREGATED_LABEL_LENGTH = 40;
 // la borne imposée aux annotateurs humains dans `golden-dataset-tag.ts`, mais
 // recopiée plutôt qu'importée : ce module sert l'agrégation analytique et ne
 // doit pas dépendre du golden dataset, qui n'en est qu'un consommateur.
-const MAX_EXTRACTED_LABEL_LENGTH = 60;
+export const MAX_EXTRACTED_LABEL_LENGTH = 60;
 
 /**
  * Extraction brute des lignes `AXE: valeur`, sans aucune politique : valeur

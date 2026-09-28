@@ -85,7 +85,7 @@ src/
 └── utils/             # Fonctions utilitaires
 ```
 
-La documentation d'architecture complète est disponible dans [`docs/DAT.md`](./docs/DAT.md).  
+La documentation d'architecture complète est un document interne : la demander à l'équipe produit.  
 Les décisions d'architecture sont dans [`docs/adr/`](./docs/adr/).
 
 ---

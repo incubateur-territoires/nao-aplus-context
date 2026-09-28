@@ -43,11 +43,24 @@ model Report {
   lastAnswerAt               DateTime?
   overdueAt                  DateTime?
 
+  /// Où en est la pseudonymisation du texte libre après suppression.
+  /// NULL = le texte est celui écrit par l'aidant.
+  pseudonymizationStatus ReportPseudonymizationStatus?
+
   @@index([authorId])
   @@index([status])
   @@index([lastAnswerAt(sort: Desc)])
   @@index([overdueAt])
   @@index([applicantTeamId]) // Filtre équipes des tableaux + CTE team_reports des stats
+  @@index([status, pseudonymizationStatus]) // Reprise des signalements masqués restés à pseudonymiser
+}
+
+/// État du texte libre d'un signalement supprimé.
+enum ReportPseudonymizationStatus {
+  /// Texte remplacé : faux texte hérité, ou marqueur après renoncement.
+  FAKE
+  /// Texte réel pseudonymisé, exploitable.
+  DONE
 }
 
 model Answer {
@@ -147,16 +160,16 @@ model User {
 }
 
 model TwoFactor {
-  id          String  @id @default(uuid())
-  secret      String
-  backupCodes String
-  userId      String  @unique
-  verified    Boolean @default(true)
+  id                      String    @id @default(uuid())
+  secret                  String
+  backupCodes             String
+  userId                  String    @unique
+  verified                Boolean   @default(true)
   // Verrouillage anti-brute-force 2FA géré par better-auth ≥ 1.6.23
   // (NIST SP 800-63B) : échecs consécutifs et fin de blocage éventuelle.
   failedVerificationCount Int       @default(0)
   lockedUntil             DateTime?
-  user        User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user                    User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model PendingUser {
@@ -458,6 +471,7 @@ model GoldenDatasetItem {
   description  String
   annotations  GoldenDatasetAnnotation[]
   predictions  GoldenDatasetPrediction[]
+  closedGolds  GoldenDatasetGold[]
 
   // Le label de référence retenu par l'équipe, un par axe. C'est le texte du
   // tag qui est retenu, pas l'annotation qui le portait : plusieurs sources
@@ -465,6 +479,36 @@ model GoldenDatasetItem {
   // dépendre de qui l'a écrit en premier.
   goldenBlockageTag  String?
   goldenProcedureTag String?
+}
+
+// Les deux tags fermés d'un item pour une version de taxonomie : le golden
+// dataset proprement dit, celui sur lequel des scores se publient.
+//
+// Une ligne s'écrit une fois et ne se met jamais à jour. Les colonnes gold
+// fines de l'item restent la source ; cette table en est la projection figée
+// par la liste TypeScript `src/utils/golden-dataset-taxonomy-v<N>.ts`. Si un
+// gold fin bouge après le gel, la restitution signale la dérive et la réponse
+// est une v2, pas une réécriture.
+//
+// Aucune colonne nulle : « inconnu » et « autre » sont des tags de la liste
+// fermée et se stockent comme du texte. Un item non adjugé n'a pas de ligne, et
+// comme une ligne ne se complète jamais, une version est écrite pour tout le
+// corpus ou pas du tout.
+//
+// La liste elle-même n'est pas en base : l'appartenance est garantie par le
+// type TypeScript de la projection, et `taxonomyVersion` est le pont vers le
+// fichier qui la porte.
+model GoldenDatasetGold {
+  id              String            @id @default(uuid())
+  createdAt       DateTime          @default(now())
+  itemId          String
+  item            GoldenDatasetItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  taxonomyVersion Int
+  blockageTag     String
+  procedureTag    String
+
+  @@unique([itemId, taxonomyVersion])
+  @@index([taxonomyVersion])
 }
 
 model GoldenDatasetAnnotation {

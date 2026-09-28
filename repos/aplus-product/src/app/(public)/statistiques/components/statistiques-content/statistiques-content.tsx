@@ -13,6 +13,11 @@ import { FiltersIntroCard } from "../filters-intro-card/filters-intro-card";
 import { StatsFiltersDrawer } from "../stats-filters-drawer/stats-filters-drawer";
 import { StatCard } from "../stat-card/stat-card";
 import { StatsSkeleton } from "../stats-skeleton/stats-skeleton";
+import {
+  TAKEN_IN_CHARGE_DESCRIPTION,
+  TREATMENT_DESCRIPTION,
+  OPERATORS_DESCRIPTION,
+} from "@/app/constant/stats-descriptions";
 import { CareDelaysTable } from "../care-delays-table/care-delays-table";
 
 const EMPTY_OPTIONS = {
@@ -39,21 +44,6 @@ const FILTERS_DEBOUNCE_MS = 400;
 // dizaines de millisecondes, si bien qu'ils clignotent et que la mise à jour
 // passe inaperçue. On les maintient assez longtemps pour qu'elle se voie.
 const LOADING_MIN_DURATION_MS = 1000;
-
-// Définition partagée par les deux graphiques de prise en charge (délai en
-// jours ouvrés et part en 72h ouvrées), alignée sur `hasTakenInCharge` de la vue.
-const TAKEN_IN_CHARGE_DESCRIPTION =
-  "Un signalement est pris en charge au premier geste de l'opérateur : passage en « En cours de traitement » ou directement en « Traité ». Les signalements fermés par l'aidant sans réponse ne sont pas comptés.";
-
-// Le traitement (`hasCompleted` dans la vue) est une mesure d'impact distincte
-// de la prise en charge : la phrase lève l'ambiguïté entre les deux graphiques.
-const TREATMENT_DESCRIPTION =
-  "Un signalement est traité quand il passe au statut « Traité ». C'est une mesure distincte de la prise en charge, qui est le premier geste de l'opérateur : un signalement pris en charge en un jour peut être traité dix jours plus tard. Les signalements fermés sans avoir été traités ne sont pas comptés.";
-
-// Le graphique déplie les opérateurs de chaque signalement (`unnest` dans la
-// requête) : son total est un nombre de sollicitations, pas de signalements.
-const OPERATORS_DESCRIPTION =
-  "Un signalement adressé à plusieurs opérateurs compte une fois pour chacun. Le total est un nombre de sollicitations, pas de signalements.";
 
 interface StatistiquesContentProps {
   initialFilters?: StatsFilters;

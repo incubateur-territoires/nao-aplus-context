@@ -1,0 +1,54 @@
+# Détail d'un signalement
+
+La page d'un signalement réunit la situation du citoyen, les pièces jointes, le fil d'échanges entre l'aidant et les équipes sollicitées, et les actions qui font avancer le dossier : répondre, changer d'état, inviter une autre équipe, clôturer.
+
+## Sub-features
+
+- `detail-open` affiche l'en-tête, l'état courant et les informations du citoyen.
+- `detail-answer` publie une réponse dans le fil d'échanges.
+- `detail-status` fait passer le signalement d'un état au suivant.
+- `detail-reopen` ramène un signalement traité en cours de traitement.
+- `detail-close` clôture le signalement avec un motif.
+- `detail-invite` sollicite une équipe supplémentaire.
+- `detail-coauthors` ajoute des co-auteurs parmi ses collègues et affiche chaque co-auteur avec le nom de son équipe : celui de l'équipe autrice s'il en est membre, sinon les noms de ses propres équipes non supprimées.
+- `detail-documents` liste et télécharge les pièces jointes.
+- `detail-read-tracking` marque les réponses et changements d'état comme lus à la consultation.
+- `detail-print` produit la vue imprimable.
+- `detail-copy-url` copie le lien du signalement.
+
+## How to get to it (user POV)
+
+- Choisir une ligne du tableau sur `/tous-les-signalements`.
+- Ouvrir `/signalement/<id>` directement, par exemple depuis un lien d'e-mail de notification.
+
+## Driving it with agent-browser
+
+Préconditions :
+
+- Session posée sur un compte membre de l'`applicantTeam` du signalement ; un compte hors périmètre ne le voit pas.
+- **Ne pas chercher par auteur** : `Report.userId` est `NULL` sur toute la base staging. Passer par l'équipe : `aplus-verify sql "select r.id, r.status from \"Report\" r join \"Team\" t on t.id=r.\"applicantTeamId\" where t.name like '<équipe du compte>%' limit 3;"`.
+- Les actions écrivent dans la base de staging partagée. Les notifications partent réellement, mais vers des adresses puits : les destinataires viennent de `User`, anonymisée à 99,9 %.
+
+- **Ouvrir.** Lancer `agent-browser open http://localhost:3000/signalement/<id>` puis `agent-browser wait --load networkidle`. L'en-tête porte le sujet et l'état courant ; les informations du citoyen et l'auteur sont visibles — masquées sur un compte `admin` ou `supervisor`, voir Gotchas.
+- **Lecture seule d'abord.** Lancer `agent-browser snapshot -i` et relever les noms accessibles réels des boutons d'action avant d'agir : ils dépendent de l'état du signalement et du rôle du compte.
+- **Répondre.** Saisir un message dans la zone `Votre message (obligatoire)` (`type` sur sa référence de `snapshot`), puis soumettre. **Le clic sur le bouton ne soumet pas** : utiliser `agent-browser eval 'document.querySelector("textarea").closest("form").requestSubmit()'`. Le log serveur contient alors `answer.createAnswer` en `200`. Vérifié : le nombre de réponses passe de 3 à 4 et le contenu correspond.
+- **Preuve de la réponse.** Relire côté base : `aplus-verify sql "select id, \"createdAt\" from \"Answer\" where \"reportId\" = '<id>' order by \"createdAt\" desc limit 1;"`.
+- **Changer d'état.** L'action offerte dépend de l'état courant : sur un signalement `CLOSED` c'est `Repasser le signalement En cours de traitement`, qui partage le formulaire de réponse — le même `requestSubmit()` publie le message **et** change l'état. Vérifié : `CLOSED` → `IN_TREATMENT`, avec une nouvelle ligne dans `ReportStatusHistory`. Confirmer : `aplus-verify sql "select status, \"createdAt\" from \"ReportStatusHistory\" where \"reportId\" = '<id>' order by \"createdAt\" desc limit 3;"`.
+- **Clôturer.** Sur un signalement `IN_TREATMENT`, le bouton `Fermer` **déplie une section** (ce clic-là fonctionne) qui révèle le bouton `Fermer le signalement`. Ce dernier ne réagit pas au clic : `agent-browser eval 'var b=[...document.querySelectorAll("button")].find(x=>x.innerText.trim()==="Fermer le signalement"); b.click()'`. Vérifié : retour à `CLOSED`, `report.updateReportStatus` dans le log.
+- **Inviter une équipe.** Ouvrir la section d'invitation et choisir une équipe non encore sollicitée. Le log serveur contient `report.addRequestedTeamsToReport` et l'équipe apparaît parmi les destinataires.
+- **Marquage comme lu.** Vérifié : la simple ouverture du signalement déclenche seule `answer.markReportAsViewed`, `answer.markAnswerAsViewed` et `answer.markStatusChangeAsViewed`, tous en `200`. Aucun clic n'est nécessaire — le constater dans le log serveur juste après l'`open`.
+- **Impression.** Choisir le bouton d'impression et vérifier que la vue imprimable contient le fil complet, pas seulement l'écran visible.
+- **Preuve UI.** Lancer `agent-browser screenshot "$PWD/.claude/skills/verify-aplus/evidence/detail-<id>-avant.png"` avant l'action et `…-apres.png"` après, en gardant l'en-tête d'état visible sur les deux.
+
+## Gotchas
+
+- Les actions disponibles dépendent de trois choses à la fois : l'état du signalement, le rôle du compte, et le fait d'être auteur ou destinataire. Une action absente n'est pas forcément une régression : vérifier avec un second compte du bon côté avant de conclure.
+- Le marquage comme lu est un effet de bord de la simple consultation. Ouvrir un signalement pour « regarder » modifie déjà l'état perçu par les autres comptes.
+- Les changements d'état déclenchent de vraies notifications Brevo, y compris en local. Sans conséquence sur des destinataires puits ; `aplus-verify mailrisk` liste les exceptions.
+- Il n'existe pas de retour arrière depuis l'interface pour une réponse publiée. Écrire un message reconnaissable, et ne pas le rejouer en boucle.
+- `DELETED` est un état du modèle mais correspond au masquage par le cron de rétention à six mois, pas à une action d'interface. Le masquage a toujours lieu à l'échéance ; le sort du texte libre se lit dans `Report.pseudonymizationStatus` : `DONE` (texte réel caviardé), `FAKE` (texte remplacé — faux texte hérité ou marqueur `Contenu supprimé`), `NULL` sur un `DELETED` (caviardage encore à faire, repris au prochain run). Le caviardage n'est actif que si `REPORT_PSEUDONYMIZATION_ENABLED=true`. L'identité d'un `DONE` ou `FAKE` écrit par le cron est fixe : `Anonymisé` pour le nom et le prénom, `00/00/0000` pour la date de naissance, `NULL` ailleurs ; une identité réaliste sur un `DELETED` vient du traitement d'avant.
+- Vérifier le cron `reports/deletion` sur le staging demande trois préparations, sinon il ne prouve rien. Après le run de 3 h, aucun signalement n'est éligible : reculer de 200 jours **toutes** les entrées `CLOSED` récentes d'un signalement, il peut en avoir deux. Les textes du staging sont du lorem : écrire une description fictive citant le nom du citoyen pour voir le caviardage. Enfin, une variable posée sur Scalingo n'est lue qu'au démarrage des conteneurs : sans redémarrage, le cron suit en silence le chemin drapeau éteint. Mattermost ne publie qu'en production : juger sur la base.
+- Les pièces jointes viennent d'un bucket S3 Scaleway : un fichier vide ou manquant est un incident connu de la couche stockage, distinct d'un défaut de cette page. Sur staging, une large part des objets historiques est absente du bucket : un 404 sur `/api/files/<id>` se qualifie par un `HeadObjectCommand` direct avant de conclure à une régression.
+- Deux formats de `File.id` coexistent : UUID pur pour les fichiers récents (le nom d'affichage vient de `File.name` en base), `<uuid>-<nom-slugifié>` pour les historiques. L'URL de téléchargement d'un fichier récent ne contient donc plus le nom du fichier.
+- Joindre un fichier à une réponse : le champ n'accepte que jpg/png/pdf **côté client** (contrôle dans `InputFile`, distinct de la liste plus large de `/api/upload-files`) ; un autre type est ignoré sans erreur visible dans le snapshot. `agent-browser upload 'input[type=file]' <chemin>` fonctionne ; vérifier la prise en compte à l'apparition du bouton `Supprimer` dans le snapshot. Le lien d'une pièce jointe du fil ne réagit pas au clic piloté : `agent-browser eval` avec `click()` sur le bouton retrouvé par son texte, et juger sur le `GET /api/files/...` dans le log serveur.
+- Un compte `admin` ou `supervisor`, et toute session d'impersonation (`getMaskingRole` force alors le rôle admin), reçoit les champs sensibles masqués sous la forme `Nom marital (12 caractères)` : sujet, description, CAF, NIR, NIF, prénom, nom, nom marital, téléphone, noms de fichiers et contenu des réponses (`src/utils/mask-sensitive-data.ts`). Un champ masqué n'est ni vide ni perdu : piloter le détail depuis un compte `user`.

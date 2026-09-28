@@ -318,8 +318,9 @@ describe("GET /api/cron/reports/overdue", () => {
       expect(mockPostToMattermost).toHaveBeenCalledWith(
         expect.stringContaining("**1** échec(s) d'envoi d'e-mail"),
       );
+      // Le détail de l'erreur est dans Sentry, pas dans le canal.
       expect(mockPostToMattermost).toHaveBeenCalledWith(
-        expect.stringContaining("Template is not active"),
+        expect.stringContaining("détail dans Sentry"),
       );
     });
 

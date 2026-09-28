@@ -59,7 +59,7 @@ const CARE_DELAYS = [
     teamId: "team-1",
     teamName: "CAF 02",
     totalReports: 10,
-    inTreatmentCount: 8,
+    takenInChargeCount: 8,
     avgDelayBusinessDays: 1.5,
     underOneBusinessDayCount: 2,
     underTwoBusinessDaysCount: 5,
@@ -98,12 +98,12 @@ describe("StatistiquesContent", () => {
         "Un signalement adressé à plusieurs opérateurs compte une fois pour chacun. Le total est un nombre de sollicitations, pas de signalements.",
       ),
     ).toBeInTheDocument();
-    // Même définition sous les deux graphiques de prise en charge.
+    // Même définition sous les deux graphiques de prise en charge et le tableau.
     expect(
       screen.getAllByText(
         "Un signalement est pris en charge au premier geste de l'opérateur : passage en « En cours de traitement » ou directement en « Traité ». Les signalements fermés par l'aidant sans réponse ne sont pas comptés.",
       ),
-    ).toHaveLength(2);
+    ).toHaveLength(3);
     // Le traitement porte sa propre définition, distincte de la prise en charge.
     expect(
       screen.getAllByText(

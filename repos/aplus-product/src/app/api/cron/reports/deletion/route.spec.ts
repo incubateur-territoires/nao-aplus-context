@@ -21,6 +21,17 @@ jest.mock("@/app/services/mattermost.service", () => ({
   postToMattermost: (...args: unknown[]) => mockPostToMattermost(...args),
 }));
 
+const mockSendReportDeletionAlerts = jest.fn();
+jest.mock("@/app/services/report/report-deletion-alerts", () => ({
+  sendReportDeletionAlerts: (...args: unknown[]) =>
+    mockSendReportDeletionAlerts(...args),
+}));
+
+const mockCaptureException = jest.fn();
+jest.mock("@sentry/nextjs", () => ({
+  captureException: (...args: unknown[]) => mockCaptureException(...args),
+}));
+
 const afterCallbacks: Array<() => void | Promise<void>> = [];
 jest.mock("next/server", () => ({
   NextResponse: {
@@ -58,6 +69,12 @@ async function flushAfterCallbacks() {
 
 const emptyResult = {
   reportsDeleted: [],
+  pseudonymized: [],
+  awaitingPseudonymization: [],
+  awaitingPseudonymizationCount: 0,
+  contentErased: [],
+  pseudonymizationOutage: false,
+  pseudonymizationEnabled: true,
   skipped: [],
   fileErrors: [],
   errors: [],
@@ -119,10 +136,8 @@ describe("GET /api/cron/reports/deletion", () => {
 
     it("posts the summary to Mattermost when reports were deleted", async () => {
       mockProcessReportDeletion.mockResolvedValue({
+        ...emptyResult,
         reportsDeleted: [{ id: "report-123" }],
-        skipped: [],
-        fileErrors: [],
-        errors: [],
       });
 
       await GET(createRequest());
@@ -132,7 +147,7 @@ describe("GET /api/cron/reports/deletion", () => {
         expect.stringContaining("Suppression de signalements"),
       );
       expect(mockPostToMattermost).toHaveBeenCalledWith(
-        expect.stringContaining("report-1"),
+        expect.stringContaining("**1** signalement(s)"),
       );
     });
 
@@ -143,6 +158,24 @@ describe("GET /api/cron/reports/deletion", () => {
       await flushAfterCallbacks();
 
       expect(mockPostToMattermost).toHaveBeenCalledWith(
+        expect.stringContaining("Aucun signalement à supprimer"),
+      );
+    });
+
+    it("signale une indisponibilité même si aucun signalement n'est arrivé à échéance", async () => {
+      mockProcessReportDeletion.mockResolvedValue({
+        ...emptyResult,
+        pseudonymizationOutage: true,
+        awaitingPseudonymizationCount: 12,
+      });
+
+      await GET(createRequest());
+      await flushAfterCallbacks();
+
+      expect(mockPostToMattermost).toHaveBeenCalledWith(
+        expect.stringContaining("Pipeline de caviardage indisponible"),
+      );
+      expect(mockPostToMattermost).not.toHaveBeenCalledWith(
         expect.stringContaining("Aucun signalement à supprimer"),
       );
     });
@@ -164,7 +197,34 @@ describe("GET /api/cron/reports/deletion", () => {
         expect.stringContaining("[Report Deletion CRON] Error"),
       );
       expect(stderrSpy).toHaveBeenCalledWith(expect.stringContaining("boom"));
+      expect(mockCaptureException).toHaveBeenCalledWith(
+        expect.objectContaining({ message: "boom" }),
+        expect.objectContaining({
+          fingerprint: ["report-deletion", "crash"],
+        }),
+      );
       stderrSpy.mockRestore();
+    });
+
+    it("transmet les incidents du run à Sentry", async () => {
+      const result = {
+        reportsDeleted: [],
+        pseudonymized: [],
+        awaitingPseudonymization: [],
+        awaitingPseudonymizationCount: 0,
+        contentErased: [],
+        skipped: [],
+        fileErrors: [],
+        errors: [{ reportId: "r-1", error: "Transaction expirée" }],
+        pseudonymizationOutage: false,
+        pseudonymizationEnabled: true,
+      };
+      mockProcessReportDeletion.mockResolvedValue(result);
+
+      await GET(createRequest());
+      await flushAfterCallbacks();
+
+      expect(mockSendReportDeletionAlerts).toHaveBeenCalledWith(result);
     });
   });
 });

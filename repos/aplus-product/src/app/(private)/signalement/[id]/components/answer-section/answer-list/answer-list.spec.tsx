@@ -159,6 +159,7 @@ const mockReport = {
   updatedAt: new Date(),
   lastAnswerAt: null,
   overdueAt: null,
+  pseudonymizationStatus: null,
 };
 
 describe("AnswerList", () => {
@@ -227,6 +228,7 @@ describe("AnswerList", () => {
             userId: null,
             lastAnswerAt: null,
             overdueAt: null,
+            pseudonymizationStatus: null,
             coAuthorsId: [],
             coAuthors: [],
             applicantTeam: createMockReportTeam({
@@ -320,6 +322,7 @@ describe("AnswerList", () => {
             userId: null,
             lastAnswerAt: null,
             overdueAt: null,
+            pseudonymizationStatus: null,
             coAuthorsId: [],
             applicantTeam: createMockReportTeam({
               id: "team-1",

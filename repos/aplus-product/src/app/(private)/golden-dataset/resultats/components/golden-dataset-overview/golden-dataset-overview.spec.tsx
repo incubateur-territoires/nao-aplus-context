@@ -60,6 +60,7 @@ const MODELE_FROID = "Modele-Small-24B (température 0,2)";
 const MODELE_CHAUD = "Modele-Small-24B (température 1)";
 const MODELE_OSS = "modele-oss-120b";
 const REFERENCE_LABEL = "Référence";
+const CLOSED_LABEL = "Fermé";
 const AGREEMENT_TITLE = "Accord entre annotateurs";
 
 const ITEMS: OverviewItem[] = [
@@ -70,6 +71,7 @@ const ITEMS: OverviewItem[] = [
     description: "Le dossier de [PRENOM] est bloqué depuis trois mois.",
     goldenBlockageTag: null,
     goldenProcedureTag: null,
+    closedGolds: [],
     annotations: [
       {
         annotatorId: "charles-1",
@@ -107,6 +109,7 @@ const ITEMS: OverviewItem[] = [
     description: "La carte de [PRENOM] n'est jamais arrivée.",
     goldenBlockageTag: null,
     goldenProcedureTag: null,
+    closedGolds: [],
     annotations: [
       {
         annotatorId: "charles-1",
@@ -137,6 +140,7 @@ const UNANIMOUS_ITEM: OverviewItem = {
   description: "La prime de [PRENOM] n'a pas été versée.",
   goldenBlockageTag: null,
   goldenProcedureTag: null,
+  closedGolds: [],
   annotations: [
     {
       annotatorId: "charles-1",
@@ -160,6 +164,7 @@ const MANON_ONLY_ITEM: OverviewItem = {
   description: "L'inscription de [PRENOM] a été refusée.",
   goldenBlockageTag: null,
   goldenProcedureTag: null,
+  closedGolds: [],
   annotations: [
     {
       annotatorId: "manon",
@@ -178,6 +183,7 @@ const ADJUDICATED_ITEM: OverviewItem = {
   description: "L'avis de [PRENOM] n'est pas accessible.",
   goldenBlockageTag: "compte inactif",
   goldenProcedureTag: "impôts",
+  closedGolds: [],
   annotations: [
     {
       annotatorId: "charles-1",
@@ -196,6 +202,7 @@ const SAME_TEXT_ON_BOTH_AXES: OverviewItem = {
   description: "Le dossier de [PRENOM] a été clos.",
   goldenBlockageTag: null,
   goldenProcedureTag: "radiation",
+  closedGolds: [],
   annotations: [
     {
       annotatorId: "charles-1",
@@ -248,6 +255,7 @@ const DATA: OverviewData = {
 const OVERVIEW_KEY = ["goldenDataset", "overview"];
 const CHOOSE_KEY = ["goldenDataset", "chooseGoldenTags"];
 const ADJUDICATE_KEY = ["goldenDataset", "adjudicateUnanimous"];
+const FREEZE_KEY = ["goldenDataset", "freezeClosedGolds"];
 
 /**
  * La mutation est mockée, donc `mutate` ne déclencherait aucun rappel. On
@@ -293,6 +301,12 @@ function setup({
         mutationOptions: jest.fn((options: MutationCallbacks) => ({
           ...options,
           mutationKey: ADJUDICATE_KEY,
+        })),
+      },
+      freezeClosedGolds: {
+        mutationOptions: jest.fn((options: MutationCallbacks) => ({
+          ...options,
+          mutationKey: FREEZE_KEY,
         })),
       },
     },
@@ -408,13 +422,15 @@ function firstCellTextOf(row: HTMLElement): string {
 }
 
 /**
- * La ligne Référence porte plusieurs boutons par cellule et n'appartient à
- * aucune source : les helpers qui lisent les lignes de sources l'écartent, sans
- * quoi ils désigneraient une cellule ambiguë.
+ * Les lignes Référence et Fermé n'appartiennent à aucune source : les helpers
+ * qui lisent les lignes de sources les écartent, sans quoi ils désigneraient
+ * une cellule ambiguë.
  */
 function sourceRowsOf(card: HTMLElement): HTMLElement[] {
   return bodyRowsOf(card).filter(
-    (row) => firstCellTextOf(row) !== REFERENCE_LABEL,
+    (row) =>
+      firstCellTextOf(row) !== REFERENCE_LABEL &&
+      !firstCellTextOf(row).startsWith(CLOSED_LABEL),
   );
 }
 

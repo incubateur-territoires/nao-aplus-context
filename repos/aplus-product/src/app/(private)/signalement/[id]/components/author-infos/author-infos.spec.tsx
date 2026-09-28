@@ -138,6 +138,7 @@ describe("AuthorInfos", () => {
     userId: null,
     lastAnswerAt: null,
     overdueAt: null,
+    pseudonymizationStatus: null,
     answers: [],
     statusHistory: [],
   };

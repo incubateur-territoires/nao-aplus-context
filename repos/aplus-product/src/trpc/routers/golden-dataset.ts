@@ -8,6 +8,8 @@ import {
   GOLDEN_TAG_COLUMNS,
   unanimousFills,
 } from "@/utils/golden-dataset-adjudication";
+import { projectCorpus } from "@/utils/golden-dataset-taxonomy";
+import { CURRENT_GOLDEN_TAXONOMY } from "@/utils/golden-dataset-taxonomy-current";
 
 const positionSchema = z.number().int().min(1);
 
@@ -321,6 +323,16 @@ export const goldenDatasetRouter = createTRPCRouter({
           predictions: {
             select: { runId: true, blockageTag: true, procedureTag: true },
           },
+          // Toutes les versions figées partent au client, pas seulement la
+          // courante : une v1 figée reste lisible à côté d'une v2 en aperçu.
+          closedGolds: {
+            orderBy: { taxonomyVersion: "asc" },
+            select: {
+              taxonomyVersion: true,
+              blockageTag: true,
+              procedureTag: true,
+            },
+          },
         },
       }),
     ]);
@@ -363,7 +375,65 @@ export const goldenDatasetRouter = createTRPCRouter({
           blockageTag: prediction.blockageTag,
           procedureTag: prediction.procedureTag,
         })),
+        closedGolds: item.closedGolds,
       })),
     };
   }),
+
+  // Écrit la version courante de la taxonomie fermée pour tout le corpus ou
+  // pas du tout : une ligne ne se complétant jamais, un item non projetable
+  // bloque le gel entier plutôt que de laisser une version à moitié écrite.
+  //
+  // Une version déjà figée rend `{ frozen: 0 }` sans reprojeter : un gold fin
+  // qui aurait bougé depuis ferait sinon refuser une opération qui n'a rien à
+  // écrire. Deux clics concurrents se règlent par l'unicité
+  // (itemId, taxonomyVersion) et `skipDuplicates`.
+  freezeClosedGolds: adminProcedure
+    .input(
+      z.object({ taxonomyVersion: z.literal(CURRENT_GOLDEN_TAXONOMY.version) }),
+    )
+    .mutation(async () => {
+      const [alreadyFrozen, items] = await prisma.$transaction([
+        prisma.goldenDatasetGold.count({
+          where: { taxonomyVersion: CURRENT_GOLDEN_TAXONOMY.version },
+        }),
+        prisma.goldenDatasetItem.findMany({
+          orderBy: { position: "asc" },
+          select: {
+            id: true,
+            position: true,
+            goldenBlockageTag: true,
+            goldenProcedureTag: true,
+          },
+        }),
+      ]);
+
+      if (alreadyFrozen > 0) {
+        return { frozen: 0 };
+      }
+
+      const projection = projectCorpus(
+        items.map(({ id, ...columns }) => ({ itemId: id, ...columns })),
+        CURRENT_GOLDEN_TAXONOMY,
+      );
+
+      if (!projection.ok) {
+        throw new TRPCError({
+          code: "PRECONDITION_FAILED",
+          message: `Gel refusé : ${projection.unmapped.length} label(s) sans entrée, ${projection.unadjudicated.length} signalement(s) non adjugé(s).`,
+        });
+      }
+
+      const written = await prisma.goldenDatasetGold.createMany({
+        data: projection.rows.map((row) => ({
+          itemId: row.itemId,
+          taxonomyVersion: CURRENT_GOLDEN_TAXONOMY.version,
+          blockageTag: row.blockageTag,
+          procedureTag: row.procedureTag,
+        })),
+        skipDuplicates: true,
+      });
+
+      return { frozen: written.count };
+    }),
 });

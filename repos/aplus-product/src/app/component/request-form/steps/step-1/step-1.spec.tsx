@@ -380,7 +380,9 @@ describe("Step1", () => {
 
   it("renders area select and organization selection", () => {
     render(<Step1 />, { wrapper: AllProviders });
-    expect(screen.getByLabelText(/Territoire concerné/i)).toBeInTheDocument();
+    expect(
+      screen.getByLabelText(/Territoire des équipes opérateur/i),
+    ).toBeInTheDocument();
     expect(
       screen.getAllByText(/Équipe\(s\) opérateur à contacter/i)[0],
     ).toBeInTheDocument();
@@ -408,7 +410,7 @@ describe("Step1", () => {
     render(<Step1 />, { wrapper: AllProviders });
 
     const select = screen.getByLabelText(
-      /Territoire concerné/i,
+      /Territoire des équipes opérateur/i,
     ) as HTMLSelectElement;
     await user.selectOptions(select, "area1");
 
@@ -431,7 +433,9 @@ describe("Step1", () => {
     await user.click(button);
 
     // Form should still be visible (navigation blocked by validation)
-    expect(screen.getByLabelText(/Territoire concerné/i)).toBeInTheDocument();
+    expect(
+      screen.getByLabelText(/Territoire des équipes opérateur/i),
+    ).toBeInTheDocument();
     expect(
       screen.getAllByText(/Équipe\(s\) opérateur à contacter/i)[0],
     ).toBeInTheDocument();
@@ -443,7 +447,7 @@ describe("Step1", () => {
 
     // Fill in valid data
     const select = screen.getByLabelText(
-      /Territoire concerné/i,
+      /Territoire des équipes opérateur/i,
     ) as HTMLSelectElement;
     await user.selectOptions(select, "area1");
 
@@ -464,7 +468,7 @@ describe("Step1", () => {
 
     // Select area first to load teams
     const select = screen.getByLabelText(
-      /Territoire concerné/i,
+      /Territoire des équipes opérateur/i,
     ) as HTMLSelectElement;
     await user.selectOptions(select, "area1");
 
@@ -482,7 +486,7 @@ describe("Step1", () => {
 
     // Fill in required fields
     const select = screen.getByLabelText(
-      /Territoire concerné/i,
+      /Territoire des équipes opérateur/i,
     ) as HTMLSelectElement;
     await user.selectOptions(select, "area1");
 

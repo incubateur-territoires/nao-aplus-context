@@ -1,5 +1,11 @@
 import { PII_TYPES } from "@/types/ai-pipeline";
-import { pseudonymize, pseudonymizeReport, redactNames } from "./pseudonymize";
+import {
+  findBirthDate,
+  parseBirthDate,
+  pseudonymize,
+  pseudonymizeReport,
+  redactNames,
+} from "./pseudonymize";
 
 describe("pseudonymize — détecteur numérique", () => {
   it.each([
@@ -174,5 +180,198 @@ describe("redactNames (couche B, volet déterministe)", () => {
     );
     expect(result.description).toBe("M. [NOM_1] attend.");
     expect(result.matches).toHaveLength(0);
+  });
+});
+
+describe("pseudonymize — motifs fixes", () => {
+  it.each([
+    ["dans une phrase", "Relance envoyée à jean.dupont@example.org hier."],
+    ["en signature", "Pour la suite : accueil@example.com"],
+  ])("caviarde une adresse e-mail %s", (_label, text) => {
+    const result = pseudonymize(text);
+    expect(result.text).toContain("[EMAIL_1]");
+    expect(result.matches[0]?.type).toBe(PII_TYPES.EMAIL);
+  });
+
+  it("caviarde une référence de dossier sous le seuil numérique", () => {
+    const result = pseudonymize("Dossier AB123456 clos par erreur.");
+    expect(result.text).toBe("Dossier [DOSSIER_1] clos par erreur.");
+  });
+
+  it("préserve un sigle suivi d'un nombre, qui n'est pas une référence", () => {
+    const text = "RSA 123456 euros versés en 2023.";
+    expect(pseudonymize(text).text).toBe(text);
+  });
+});
+
+describe("pseudonymizeReport — date de naissance connue", () => {
+  it.each([
+    ["format français", "12/01/1984", "Né le 12/01/1984, dossier bloqué."],
+    ["format ISO", "12/01/1984", "Naissance 1984-01-12 au dossier."],
+    ["séparateurs mêlés", "12/01/1984", "État civil : 12-01-1984."],
+  ])("caviarde la date de naissance en %s", (_label, birthDate, text) => {
+    const result = pseudonymizeReport(
+      { subject: "", description: text },
+      {
+        birthDate,
+      },
+    );
+    expect(result.description).toContain("[DATE_NAISSANCE_1]");
+  });
+
+  it.each([
+    ["nom du mois", "Né le 12 janvier 1984, dossier bloqué."],
+    ["mois abrégé", "Naissance 12 janv. 1984 au dossier."],
+    ["mois sans accent", "Née le 12 fevrier 1984."],
+  ])(
+    "caviarde la date de naissance écrite en toutes lettres : %s",
+    (_label, text) => {
+      const birthDate = text.includes("fevrier") ? "12/02/1984" : "12/01/1984";
+      const result = pseudonymizeReport(
+        { subject: "", description: text },
+        { birthDate },
+      );
+      expect(result.description).toContain("[DATE_NAISSANCE_1]");
+    },
+  );
+
+  it("caviarde une date de naissance saisie en toutes lettres en base", () => {
+    const result = pseudonymizeReport(
+      { subject: "", description: "Née le 01/01/1944, veuve depuis 2019." },
+      { birthDate: "01 JANVIER 1944" },
+    );
+    expect(result.description).toBe(
+      "Née le [DATE_NAISSANCE_1], veuve depuis 2019.",
+    );
+  });
+
+  it("donne le même jeton aux écritures numérique et littérale", () => {
+    const result = pseudonymizeReport(
+      {
+        subject: "",
+        description: "Né le 12/01/1984, soit le 12 janvier 1984.",
+      },
+      { birthDate: "12/01/1984" },
+    );
+    expect(result.description).toBe(
+      "Né le [DATE_NAISSANCE_1], soit le [DATE_NAISSANCE_1].",
+    );
+  });
+
+  it("laisse intacte une date qui n'est pas celle de naissance", () => {
+    const text = "Relance le 12/01/2024 sans réponse.";
+    const result = pseudonymizeReport(
+      { subject: "", description: text },
+      { birthDate: "12/01/1984" },
+    );
+    expect(result.description).toBe(text);
+  });
+
+  it("ignore une date de naissance illisible", () => {
+    const text = "Né un jeudi, dossier bloqué.";
+    const result = pseudonymizeReport(
+      { subject: "", description: text },
+      { birthDate: "inconnue" },
+    );
+    expect(result.description).toBe(text);
+  });
+});
+
+describe("findBirthDate", () => {
+  it("retrouve la date sous une autre écriture que celle stockée", () => {
+    expect(
+      findBirthDate("Né le 12 janvier 1984, puis 12/01/1984.", "1984-01-12"),
+    ).toEqual(["12/01/1984", "12 janvier 1984"]);
+  });
+
+  it("ne retrouve rien pour une autre date", () => {
+    expect(findBirthDate("Rendez-vous le 13/01/1984.", "1984-01-12")).toEqual(
+      [],
+    );
+  });
+});
+
+describe("parseBirthDate", () => {
+  it.each([
+    ["12/01/1984", { day: 12, month: 1, year: 1984 }],
+    ["1984-01-12", { day: 12, month: 1, year: 1984 }],
+    ["1.1.2000", { day: 1, month: 1, year: 2000 }],
+    ["01 JANVIER 1944", { day: 1, month: 1, year: 1944 }],
+    ["1er janvier 1944", { day: 1, month: 1, year: 1944 }],
+    ["12 fevrier 1984", { day: 12, month: 2, year: 1984 }],
+    ["12 déc. 1984", { day: 12, month: 12, year: 1984 }],
+  ])("lit %s", (value, expected) => {
+    expect(parseBirthDate(value)).toEqual(expected);
+  });
+
+  it.each(["", "inconnue", "12/1984", "32-13-1984-05", "12 brumaire 1984"])(
+    "renvoie null sur %s",
+    (value) => {
+      expect(parseBirthDate(value)).toBeNull();
+    },
+  );
+});
+
+describe("pseudonymizeReport — morphologie des noms", () => {
+  it("caviarde un nom de famille qui est aussi une particule", () => {
+    const result = pseudonymizeReport(
+      { subject: "", description: "Minh Le a appelé : le dossier est bloqué." },
+      { firstName: "Minh", lastName: "Le" },
+    );
+    expect(result.description).not.toMatch(/\bLe\b/);
+    expect(result.description).toContain("le dossier est bloqué");
+  });
+
+  it("caviarde un nom à particule sans manger les autres particules", () => {
+    const result = pseudonymizeReport(
+      {
+        subject: "",
+        description:
+          "Le versement de la prime est suspendu. Marc de Vaucelles, France Services.",
+      },
+      undefined,
+      ["Marc de Vaucelles"],
+    );
+    expect(result.description).toBe(
+      "Le versement de la prime est suspendu. [NOM_1], France Services.",
+    );
+  });
+
+  it("exige une majuscule pour un nom homonyme d'un mot courant", () => {
+    const result = pseudonymizeReport(
+      {
+        subject: "",
+        description: "Léa Petit conteste : un petit reste à charge subsiste.",
+      },
+      { firstName: "Léa", lastName: "Petit" },
+    );
+    expect(result.description).toBe(
+      "[NOM_2] [NOM_1] conteste : un petit reste à charge subsiste.",
+    );
+  });
+
+  it("reconnaît un prénom écrit sans son diacritique", () => {
+    const result = pseudonymizeReport(
+      { subject: "", description: "Chaima a déposé un recours." },
+      { firstName: "Chaïma" },
+    );
+    expect(result.description).toBe("[NOM_1] a déposé un recours.");
+  });
+
+  it("reconnaît un nom écrit sans son apostrophe", () => {
+    const result = pseudonymizeReport(
+      { subject: "", description: "Mme Ndiaye a confirmé." },
+      undefined,
+      ["Awa N'Diaye"],
+    );
+    expect(result.description).toBe("Mme [NOM_1] a confirmé.");
+  });
+
+  it("caviarde un nom composé cité par sa seule seconde partie", () => {
+    const result = pseudonymizeReport(
+      { subject: "", description: "Mme Legrand relance depuis mars." },
+      { lastName: "Nguyen-Legrand" },
+    );
+    expect(result.description).toBe("Mme [NOM_1] relance depuis mars.");
   });
 });

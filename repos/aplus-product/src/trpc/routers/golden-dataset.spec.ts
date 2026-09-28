@@ -2,6 +2,8 @@ import { createCallerFactory } from "../init";
 import { goldenDatasetRouter } from "./golden-dataset";
 import prisma from "@/lib/prisma";
 import { createMockUser, MOCK_IDS, USER_ROLES } from "@/test/mocks";
+import { UNDETERMINED_GOLDEN_TAG } from "@/utils/golden-dataset-tag";
+import { CURRENT_GOLDEN_TAXONOMY } from "@/utils/golden-dataset-taxonomy-current";
 
 jest.mock("@/lib/auth", () => ({
   auth: {
@@ -26,6 +28,10 @@ jest.mock("@/lib/prisma", () => {
     },
     goldenDatasetRun: {
       findMany: jest.fn(),
+    },
+    goldenDatasetGold: {
+      count: jest.fn(),
+      createMany: jest.fn(),
     },
     user: {
       findMany: jest.fn(),
@@ -706,6 +712,103 @@ describe("goldenDatasetRouter", () => {
     });
   });
 
+  describe("freezeClosedGolds", () => {
+    const VERSION = CURRENT_GOLDEN_TAXONOMY.version;
+
+    function items(
+      golds: { id: string; position: number; fine: string | null }[],
+    ) {
+      (prisma.goldenDatasetItem.findMany as jest.Mock).mockResolvedValue(
+        golds.map(({ id, position, fine }) => ({
+          id,
+          position,
+          goldenBlockageTag: fine,
+          goldenProcedureTag: fine,
+        })),
+      );
+    }
+
+    it("throws FORBIDDEN when caller is not admin", async () => {
+      await expect(
+        userCaller().freezeClosedGolds({ taxonomyVersion: VERSION }),
+      ).rejects.toMatchObject({ code: "FORBIDDEN" });
+
+      expect(prisma.goldenDatasetGold.createMany).not.toHaveBeenCalled();
+    });
+
+    it("refuse une version qui n'est pas la version courante", async () => {
+      await expect(
+        adminCaller().freezeClosedGolds({ taxonomyVersion: VERSION + 1 }),
+      ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+
+      expect(prisma.goldenDatasetGold.createMany).not.toHaveBeenCalled();
+    });
+
+    it("écrit une ligne par item quand tout le corpus se projette", async () => {
+      (prisma.goldenDatasetGold.count as jest.Mock).mockResolvedValue(0);
+      items([
+        { id: "item-2", position: 2, fine: UNDETERMINED_GOLDEN_TAG },
+        { id: "item-1", position: 1, fine: UNDETERMINED_GOLDEN_TAG },
+      ]);
+      (prisma.goldenDatasetGold.createMany as jest.Mock).mockResolvedValue({
+        count: 2,
+      });
+
+      const result = await adminCaller().freezeClosedGolds({
+        taxonomyVersion: VERSION,
+      });
+
+      expect(result).toEqual({ frozen: 2 });
+      expect(prisma.goldenDatasetGold.createMany).toHaveBeenCalledWith({
+        data: [
+          {
+            itemId: "item-1",
+            taxonomyVersion: VERSION,
+            blockageTag: UNDETERMINED_GOLDEN_TAG,
+            procedureTag: UNDETERMINED_GOLDEN_TAG,
+          },
+          {
+            itemId: "item-2",
+            taxonomyVersion: VERSION,
+            blockageTag: UNDETERMINED_GOLDEN_TAG,
+            procedureTag: UNDETERMINED_GOLDEN_TAG,
+          },
+        ],
+        skipDuplicates: true,
+      });
+    });
+
+    it("ne reprojette rien quand la version est déjà figée", async () => {
+      (prisma.goldenDatasetGold.count as jest.Mock).mockResolvedValue(100);
+      items([{ id: "item-1", position: 1, fine: "label inconnu de la liste" }]);
+
+      const result = await adminCaller().freezeClosedGolds({
+        taxonomyVersion: VERSION,
+      });
+
+      expect(result).toEqual({ frozen: 0 });
+      expect(prisma.goldenDatasetGold.createMany).not.toHaveBeenCalled();
+    });
+
+    it("refuse le gel en chiffrant ce qui manque", async () => {
+      (prisma.goldenDatasetGold.count as jest.Mock).mockResolvedValue(0);
+      items([
+        { id: "item-1", position: 1, fine: "label absent de la projection" },
+        { id: "item-2", position: 2, fine: null },
+      ]);
+
+      await expect(
+        adminCaller().freezeClosedGolds({ taxonomyVersion: VERSION }),
+      ).rejects.toMatchObject({
+        code: "PRECONDITION_FAILED",
+        message:
+          "Gel refusé : 2 label(s) sans entrée, 1 signalement(s) non adjugé(s).",
+      });
+
+      expect(prisma.goldenDatasetGold.createMany).not.toHaveBeenCalled();
+    });
+  });
+
   describe("overview", () => {
     it("throws FORBIDDEN when caller is not admin", async () => {
       await expect(userCaller().overview()).rejects.toMatchObject({
@@ -935,6 +1038,14 @@ describe("goldenDatasetRouter", () => {
           },
           predictions: {
             select: { runId: true, blockageTag: true, procedureTag: true },
+          },
+          closedGolds: {
+            orderBy: { taxonomyVersion: "asc" },
+            select: {
+              taxonomyVersion: true,
+              blockageTag: true,
+              procedureTag: true,
+            },
           },
         },
       });

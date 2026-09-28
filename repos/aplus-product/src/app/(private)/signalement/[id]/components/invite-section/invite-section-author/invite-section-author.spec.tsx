@@ -92,6 +92,7 @@ const mockReport: inferRouterOutputs<AppRouter>["report"]["getReportById"] = {
   updatedAt: MOCK_DATES.JAN_1_2024,
   lastAnswerAt: null,
   overdueAt: null,
+  pseudonymizationStatus: null,
 };
 
 const mockColleagues = [

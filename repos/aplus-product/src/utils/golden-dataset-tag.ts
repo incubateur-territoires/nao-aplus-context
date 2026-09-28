@@ -51,6 +51,15 @@ export function validateAnnotationTag(
  */
 export const UNDETERMINED_GOLDEN_TAG = "inconnu";
 
+/** L'axe est déterminable, mais aucun tag de la liste fermée ne convient. */
+export const OTHER_GOLDEN_TAG = "autre";
+
+/**
+ * Sur l'axe blocage : rien n'empêche la situation d'avancer. C'est une
+ * réponse, là où `inconnu` est une abstention.
+ */
+export const NO_BLOCKAGE_GOLDEN_TAG = "aucun";
+
 export function canonicalTag(tag: string): string {
   return normalizeSearchQuery(tag.split(/\s+/).join(" "));
 }

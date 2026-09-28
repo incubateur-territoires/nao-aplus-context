@@ -96,6 +96,7 @@ const mockAnswer: AnswerType = {
     updatedAt: new Date(),
     lastAnswerAt: null,
     overdueAt: null,
+    pseudonymizationStatus: null,
     areaId: "area-1",
     applicantTeamId: "group-1",
     citizenPermissionConfirmed: true,

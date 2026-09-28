@@ -85,6 +85,7 @@ const mockAnswer: AnswerType = {
     updatedAt: new Date(),
     lastAnswerAt: null,
     overdueAt: null,
+    pseudonymizationStatus: null,
     userId: null,
     applicantTeam: createMockReportTeam({
       id: "group-1",

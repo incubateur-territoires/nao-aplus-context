@@ -307,6 +307,7 @@ describe("RequestContent", () => {
     coAuthorsId: [],
     answers: [],
     statusHistory: [],
+    pseudonymizationStatus: null,
   };
 
   const renderWithWrapper = (children: React.ReactNode) => {

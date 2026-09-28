@@ -22,6 +22,8 @@ export interface CitizenIdentity {
   firstName?: string | null;
   lastName?: string | null;
   maritalName?: string | null;
+  /** `Report.birthDate`, caviardée sous ses écritures courantes. */
+  birthDate?: string | null;
 }
 
 /**
@@ -36,14 +38,22 @@ export interface Step<TIn, TOut> {
 
 /**
  * Catégories de PII caviardées par la couche déterministe.
- * - NUMBER : toute suite longue de chiffres (NIR, NIF, CAF, téléphone, n° de
- *   dossier…). Les chiffres courts porteurs de sens (durée, montant, date)
- *   sont préservés.
- * - NAME : nom/prénom du citoyen, retiré via le dictionnaire de l'enregistrement.
+ * - NUMBER : suite longue de chiffres (NIR, NIF, CAF, téléphone…). Les chiffres
+ *   courts porteurs de sens (durée, montant, année) sont préservés.
+ * - NAME : nom d'une personne connue en base — citoyen ou participant au fil.
+ * - EMAIL, CASE_NUMBER : motifs fixes.
+ * - BIRTH_DATE : la seule date caviardée, et uniquement parce qu'elle est
+ *   connue en base. Aucun détecteur générique : une date de relance porte du
+ *   sens et doit survivre.
+ * - RESIDUAL : donnée identifiante citée par le juge, caviardée littéralement.
  */
 export const PII_TYPES = {
   NUMBER: "NUMBER",
   NAME: "NAME",
+  EMAIL: "EMAIL",
+  BIRTH_DATE: "BIRTH_DATE",
+  CASE_NUMBER: "CASE_NUMBER",
+  RESIDUAL: "RESIDUAL",
 } as const;
 
 export type PiiType = (typeof PII_TYPES)[keyof typeof PII_TYPES];
