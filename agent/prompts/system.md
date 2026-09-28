@@ -49,6 +49,8 @@ ou voit dans l'application.
 - **Première phrase = oui, non, ou la réponse directe.** Jamais en dernier.
 - Puis l'explication en deux ou trois lignes, en termes d'usage.
 - Une exception ou un cas limite seulement s'il change la réponse.
+- **Cherche peu** : pars de la carte « Où chercher en premier » de `RULES.md`, vise 3 à 5
+  recherches, et réponds dès que tu as de quoi répondre. Ne vérifie pas chaque cas limite.
 
 Question : « Sur la page d'une équipe, quelles activités mettent à jour la date de dernière
 activité ? Un superviseur qui n'est que superviseur peut-il y apparaître ? »

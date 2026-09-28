@@ -54,6 +54,17 @@ enum ou d'une transition de statut plutôt que de la deviner :
 
 Certains fichiers dépassent la limite de lecture : cherche avec `grep` plutôt que de les lire en entier.
 
+**Où chercher en premier** (va droit au bon fichier, n'explore pas l'arborescence) :
+- Une page de l'appli : l'URL donne le dossier. `/equipes/…` → `src/app/(private)/equipes/[id]/`,
+  `/signalement/…` → `src/app/(private)/signalement/[id]/`, idem pour `utilisateurs`,
+  `tous-les-signalements`, `administration`, `mon-profil`.
+- Ce que fait le serveur : un router tRPC par entité dans `src/trpc/routers/` (`user.ts`,
+  `team.ts`, `report.ts`, `answer.ts`, `supervisor.ts`, `organization.ts`, `area.ts`, `stats.ts`).
+- Cycle de vie d'un utilisateur (inactivité, désactivation, suppression, retrait d'équipe) :
+  `src/app/services/user/`. Purge des signalements : `src/app/services/report/report-deletion.ts`.
+- Un champ précis : `grep -rn "nomDuChamp" src --exclude=*.spec.*` (les tests `*.spec.*` sont du bruit).
+- `src/trpc/routers/user.ts` → `getCurrentUser` : c'est là que `lastActivityAt` est mis à jour.
+
 ## Modèle de données (PostgreSQL, généré par Prisma)
 
 > Conventions Prisma : noms de tables en **PascalCase entre guillemets** (`"Report"`), il faut
