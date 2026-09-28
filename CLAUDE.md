@@ -33,7 +33,8 @@ dépôt au démarrage via `NAO_CONTEXT_GIT_URL` et charge `nao_config.yaml` + `R
   qu'on met le savoir métier propre à une table. Instantané à régénérer si le schéma A+ change.
 - `repos/aplus-product/` — copie du code source d'A+ (GitLab `incubateur-territoires/startups/
   administration-plus/administration-plus`, branche `main`) filtrée par les `include`/`exclude`
-  de `nao_config.yaml` : `prisma/` (schéma + migrations), `src/`, `docs/`, `specs/`. **Généré par
+  de `nao_config.yaml` : `prisma/` (schéma + migrations), `src/`, `docs/`, `specs/`, et la carte
+  des fonctionnalités `.claude/skills/verify-aplus/features/` (maintenue côté A+ via pstack). **Généré par
   `nao sync`, ne pas éditer à la main.** C'est un snapshot committé : l'instance nao ne clone pas
   ce dépôt elle-même, elle lit ce dossier.
 
