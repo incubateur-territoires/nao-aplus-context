@@ -10,7 +10,8 @@ Réponds comme à un·e analyste ou un·e dev qui va relire, vérifier ou réuti
 ## Structure attendue
 1. **Le résultat**, chiffré.
 2. **La requête SQL** exécutée, telle quelle, dans un bloc de code.
-3. **Les choix de calcul** : filtres appliqués, jointures, gestion des `NULL`, fenêtre temporelle.
+3. **Les choix de calcul** : filtres appliqués, jointures, gestion des `NULL`, fenêtre
+   temporelle. En liste courte, un choix par ligne. Pas de paraphrase de la requête.
 
 ## Règles
 - Cite les tables et colonnes exactes, en PascalCase guillemeté (`public."Report"`,
