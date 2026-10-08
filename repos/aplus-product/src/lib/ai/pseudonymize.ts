@@ -337,13 +337,19 @@ function birthDateDetectors(birthDate: string): Detector[] {
     "g",
   );
 
-  const dayForm = parts.day === 1 ? "(?:0?1er|0?1)" : day;
-  const spelled = new RegExp(
-    `(?<![\\p{L}\\p{N}])${dayForm}\\s+${monthPattern(parts.month)}\\s+${parts.year}(?![\\p{L}\\p{N}])`,
-    "gu",
-  );
+  const regexes = [numeric];
+  // Mois hors bornes (saisie américaine, « 00/00/1980 ») : pas d'écriture en lettres.
+  if (parts.month >= 1 && parts.month <= MONTHS.length) {
+    const dayForm = parts.day === 1 ? "(?:0?1er|0?1)" : day;
+    regexes.push(
+      new RegExp(
+        `(?<![\\p{L}\\p{N}])${dayForm}\\s+${monthPattern(parts.month)}\\s+${parts.year}(?![\\p{L}\\p{N}])`,
+        "gu",
+      ),
+    );
+  }
 
-  return [numeric, spelled].map((regex) => ({
+  return regexes.map((regex) => ({
     regex,
     type: PII_TYPES.BIRTH_DATE,
     keyOf: () => key,
@@ -414,7 +420,9 @@ function applyDetector(
   return { text: nextText, matches };
 }
 
-function createCounters(): Record<PiiType, number> {
+export type TokenCounters = Record<PiiType, number>;
+
+export function createCounters(): TokenCounters {
   return {
     [PII_TYPES.NUMBER]: 0,
     [PII_TYPES.NAME]: 0,
@@ -423,6 +431,31 @@ function createCounters(): Record<PiiType, number> {
     [PII_TYPES.CASE_NUMBER]: 0,
     [PII_TYPES.RESIDUAL]: 0,
   };
+}
+
+const TOKEN_PATTERN = new RegExp(
+  `\\[(${Object.values(PLACEHOLDER_LABELS).join("|")})_(\\d+)\\]`,
+  "g",
+);
+
+/** Plus haut numéro de jeton posé, par type : un caviardage ultérieur numérote après. */
+export function highestTokens(texts: string[]): TokenCounters {
+  const labelToType = new Map(
+    Object.entries(PLACEHOLDER_LABELS).map(([type, label]) => [
+      label,
+      type as PiiType,
+    ]),
+  );
+  const counters = createCounters();
+
+  for (const text of texts) {
+    for (const [, label, index] of text.matchAll(TOKEN_PATTERN)) {
+      const type = labelToType.get(label);
+      if (type) counters[type] = Math.max(counters[type], Number(index));
+    }
+  }
+
+  return counters;
 }
 
 /**
@@ -525,12 +558,11 @@ export function pseudonymizeFields(
   fields: NamedField[],
   identity?: CitizenIdentity,
   extraNames: string[] = [],
+  startCounters: TokenCounters = createCounters(),
 ): { fields: NamedField[]; matches: PiiMatch[] } {
-  return applyToFields(
-    fields,
-    buildDetectors(identity, extraNames),
-    createCounters(),
-  );
+  return applyToFields(fields, buildDetectors(identity, extraNames), {
+    ...startCounters,
+  });
 }
 
 /**

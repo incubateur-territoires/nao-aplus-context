@@ -7,10 +7,12 @@ import {
 } from "@/types/ai-pipeline";
 import { checkNoPii } from "./guards/no-pii";
 import {
+  createCounters,
   pseudonymizeFields,
   redactLiterals,
   redactNamesInFields,
   type NamedField,
+  type TokenCounters,
 } from "./pseudonymize";
 import { extractNamesStep } from "./steps/extract-names";
 import { judgePiiStep } from "./steps/judge-pii";
@@ -62,6 +64,8 @@ export interface ReportRedactionInput {
   identity: CitizenIdentity;
   /** Noms des auteurs du signalement et des réponses, connus en base. */
   participantNames: string[];
+  /** Jetons déjà posés sur d'autres morceaux du dossier : la numérotation reprend après. */
+  tokenOffsets?: TokenCounters;
 }
 
 export interface ReportRedactionOutput {
@@ -151,17 +155,19 @@ function countMatches(matches: PiiMatch[], type: PiiMatch["type"]): number {
 export async function redactReport(
   input: ReportRedactionInput,
 ): Promise<ReportRedactionOutput> {
+  const offsets = input.tokenOffsets ?? createCounters();
   const layerA = pseudonymizeFields(
     toFields(input),
     input.identity,
     input.participantNames,
+    offsets,
   );
 
   const names = await extractNames(layerA.fields);
   const layerB = redactNamesInFields(
     layerA.fields,
     names,
-    countMatches(layerA.matches, PII_TYPES.NAME),
+    offsets[PII_TYPES.NAME] + countMatches(layerA.matches, PII_TYPES.NAME),
   );
 
   let fields = layerB.fields;
@@ -181,7 +187,7 @@ export async function redactReport(
     const corrected = redactLiterals(
       fields,
       residues,
-      countMatches(matches, PII_TYPES.RESIDUAL),
+      offsets[PII_TYPES.RESIDUAL] + countMatches(matches, PII_TYPES.RESIDUAL),
     );
     fields = corrected.fields;
     matches.push(...corrected.matches);

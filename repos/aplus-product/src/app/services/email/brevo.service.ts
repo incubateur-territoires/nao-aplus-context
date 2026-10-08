@@ -37,6 +37,16 @@ interface BrevoEmailOptions {
   attachment?: { name: string; content: string }[];
 }
 
+// Brevo refuse en 400 (« params is blank ») un envoi par template avec des
+// params vides ; une clé que le template ignore suffit.
+function withNonBlankParams(
+  params: Record<string, unknown> | undefined,
+): Record<string, unknown> {
+  return params && Object.keys(params).length > 0
+    ? params
+    : { source: "administration-plus" };
+}
+
 interface BrevoResponse {
   success: boolean;
   messageId?: string;
@@ -68,7 +78,7 @@ export async function sendBrevoEmail(
 
     if (options.templateId) {
       sendSmtpEmail.templateId = options.templateId;
-      sendSmtpEmail.params = options.params;
+      sendSmtpEmail.params = withNonBlankParams(options.params);
     } else {
       sendSmtpEmail.htmlContent = options.htmlContent;
       sendSmtpEmail.textContent = options.textContent;

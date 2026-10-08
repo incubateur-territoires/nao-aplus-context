@@ -159,6 +159,7 @@ export function createMockReportTeam(
     internalSupportComment: null,
     publicNote: null,
     deletedAt: null,
+    createdById: null,
     organization: createMockOrganization(orgOverrides),
     ...teamOverrides,
   };
@@ -249,6 +250,7 @@ export function createMockTeamWithIncludes(
     createdAt: MOCK_DATES.JAN_1_2024,
     updatedAt: MOCK_DATES.JAN_1_2024,
     deletedAt: null,
+    createdById: null,
     organization: createMockOrganizationFull(orgOverrides),
     ...teamOverrides,
   } as MockTeamWithIncludesType;
@@ -307,6 +309,7 @@ export function createMockAuthor(
     banExpires: null,
     twoFactorEnabled: false,
     notificationsViewedBefore: null,
+    taggingFeedbackHiddenAt: null,
     teams: [],
     createdAt: MOCK_DATES.JAN_1_2024,
     updatedAt: MOCK_DATES.JAN_1_2024,
@@ -384,6 +387,7 @@ export function createMockUser(overrides?: Partial<FullUser>): FullUser {
     // la désactive doit le dire explicitement.
     twoFactorEnabled: true,
     notificationsViewedBefore: null,
+    taggingFeedbackHiddenAt: null,
     teams: defaultTeams,
     ...overrides,
   };

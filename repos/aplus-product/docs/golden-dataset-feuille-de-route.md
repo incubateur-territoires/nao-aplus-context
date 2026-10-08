@@ -132,23 +132,25 @@ suggestion qu'un humain valide.
 
 Pour étiqueter un signalement, il faut d'abord le caviarder : on n'envoie
 pas de données personnelles à Albert. Le caviardage est l'étape la plus
-coûteuse. Aujourd'hui, rien ne conserve en base ni le texte caviardé ni les
-étiquettes des signalements en cours. Il faudra donc stocker :
+coûteuse, d'où la décision de **conserver le texte pseudonymisé de tous les
+signalements**, et plus seulement à la suppression :
 
-- **les étiquettes**, avec la version de la liste et le modèle utilisé ;
-- **le texte caviardé**, pour ne pas le recalculer : le traitement de
-  suppression à six mois pourrait le réutiliser, et on pourrait ré-étiqueter
-  plus tard avec une meilleure consigne sans tout repayer.
+- **Le texte pseudonymisé** vit dans deux tables, une pour le sujet et la
+  description, une pour les réponses. Sujet, description et réponses ne
+  changent jamais : chaque morceau est caviardé une seule fois, au fil de
+  l'eau, par un cron de nuit désactivé par défaut. Le traitement de
+  suppression à six mois le réutilise au lieu de repayer le caviardage.
+- **Les étiquettes** sont posées avec la recette de l'examen (labels fins,
+  rangés par tag fermé), sur le sujet et la description pseudonymisés
+  seulement. L'étiquetage a son propre cron, séparé de la pseudonymisation :
+  il reprend chaque jour les signalements pseudonymisés pas encore étiquetés
+  avec la recette courante. Le libellé fin est conservé à côté du tag fermé,
+  avec la recette qui l'a produit. Le blocage n'est stocké qu'à titre de
+  suggestion ; aucune interface ne les affiche encore.
 
-Trois questions à trancher avant :
-
-- **RGPD.** Un texte caviardé reste une donnée pseudonymisée, pas anonyme.
-  Garder une copie d'un signalement encore ouvert est un nouveau traitement,
-  à faire valider.
-- **Fraîcheur.** Un signalement ouvert continue de recevoir des réponses :
-  la copie caviardée vieillit, il faut décider quand la refaire.
-- **Périmètre.** L'examen ne justifie l'automatisation que pour la
-  démarche : commencer par elle.
+La validation RGPD de ce nouveau traitement, qui conserve une copie
+pseudonymisée des signalements encore ouverts, reste à confirmer par le
+responsable produit avant d'activer le cron.
 
 ### Piste en attente : un lot plus grand, étiqueté par Albert et validé par l'équipe
 

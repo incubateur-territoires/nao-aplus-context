@@ -2,7 +2,9 @@ import {
   PIPELINE_ERROR_KINDS,
   classifyPipelineError,
 } from "@/lib/ai/pipeline-error";
+import type { TokenCounters } from "@/lib/ai/pseudonymize";
 import { redactReport } from "@/lib/ai/redact-report";
+import type { PseudonymizedContent } from "@/types/pseudonymized-report";
 import { createLogger } from "@/utils/logger";
 
 /**
@@ -60,10 +62,13 @@ export interface ReportContent {
   }[];
 }
 
-export interface PseudonymizedContent {
-  subject: string;
-  description: string;
-  answers: { id: string; content: string }[];
+export type { PseudonymizedContent } from "@/types/pseudonymized-report";
+
+/** Morceaux à caviarder quand d'autres le sont déjà ; les noms de tout le fil restent fournis. */
+export interface RedactionScope {
+  includeReport: boolean;
+  answerIds: ReadonlySet<string>;
+  tokenOffsets: TokenCounters;
 }
 
 export interface PseudonymizationAttempt {
@@ -91,15 +96,22 @@ function participantNames(report: ReportContent): string[] {
 export async function pseudonymizeReportContent(
   reportId: string,
   report: ReportContent,
+  scope?: RedactionScope,
 ): Promise<PseudonymizationAttempt> {
+  const includeReport = scope?.includeReport ?? true;
+  const answers = scope
+    ? report.answers.filter((answer) => scope.answerIds.has(answer.id))
+    : report.answers;
+
   try {
     const result = await redactReport({
-      subject: report.subject,
-      description: report.description,
-      answers: report.answers.map((answer) => ({
+      subject: includeReport ? report.subject : "",
+      description: includeReport ? report.description : "",
+      answers: answers.map((answer) => ({
         id: answer.id,
         content: answer.content,
       })),
+      tokenOffsets: scope?.tokenOffsets,
       identity: {
         firstName: report.firstName,
         lastName: report.lastName,

@@ -3,7 +3,12 @@ import {
   PII_CATEGORIES,
   type PiiEvalCase,
 } from "./pii-corpus";
-import { remainingFragments, scoreByCategory, scoreCase } from "./score";
+import {
+  remainingFragments,
+  scoreByCategory,
+  scoreCase,
+  summarizeScores,
+} from "./score";
 
 describe("remainingFragments", () => {
   it("compte un nom réduit à une particule", () => {
@@ -166,5 +171,61 @@ describe("scoreByCategory", () => {
       category: PII_CATEGORIES.PHONE,
       recall: 1,
     });
+  });
+
+  it("sépare une même catégorie attendue de deux couches différentes", () => {
+    const evalCase: PiiEvalCase = {
+      label: "c",
+      text: "",
+      mustRedact: [
+        {
+          category: PII_CATEGORIES.CITIZEN_NAME,
+          layer: DETECTION_LAYERS.DETERMINISTIC,
+          value: "Benaissa",
+        },
+        {
+          category: PII_CATEGORIES.CITIZEN_NAME,
+          layer: DETECTION_LAYERS.LLM,
+          value: "Bennaissa",
+        },
+      ],
+      mustPreserve: [],
+    };
+
+    const result = scoreByCategory(
+      [evalCase],
+      [scoreCase(evalCase, "[NOM_1], écrit aussi Bennaissa.")],
+    );
+    expect(result).toEqual([
+      expect.objectContaining({ layer: DETECTION_LAYERS.LLM, recall: 0 }),
+      expect.objectContaining({
+        layer: DETECTION_LAYERS.DETERMINISTIC,
+        recall: 1,
+      }),
+    ]);
+  });
+});
+
+describe("summarizeScores", () => {
+  it("additionne attentes, fuites et fragments détruits", () => {
+    const evalCase: PiiEvalCase = {
+      label: "d",
+      text: "",
+      mustRedact: [
+        {
+          category: PII_CATEGORIES.PHONE,
+          layer: DETECTION_LAYERS.DETERMINISTIC,
+          value: "0612345678",
+        },
+      ],
+      mustPreserve: ["RSA suspendu"],
+    };
+
+    expect(
+      summarizeScores([
+        scoreCase(evalCase, "0612345678"),
+        scoreCase(evalCase, "[NUMERO_1], RSA suspendu"),
+      ]),
+    ).toEqual({ expected: 2, missed: 1, destroyed: 1 });
   });
 });

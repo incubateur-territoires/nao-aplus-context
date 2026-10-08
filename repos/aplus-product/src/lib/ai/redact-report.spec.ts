@@ -1,3 +1,5 @@
+import { PII_TYPES } from "@/types/ai-pipeline";
+import { createCounters } from "./pseudonymize";
 import { redactReport, type ReportRedactionInput } from "./redact-report";
 
 jest.mock("./steps/extract-names", () => ({
@@ -202,6 +204,30 @@ describe("redactReport", () => {
 
     expect(result.description).toBe(
       "RSA de 600 euros non versé depuis 8 mois, relance le 12/01/2024.",
+    );
+  });
+
+  it("reprend la numérotation après les jetons d'un caviardage précédent", async () => {
+    givenNames("Sophie Martin");
+    givenJudge(["Lyon"]);
+
+    const result = await redactReport(
+      buildInput({
+        subject: "",
+        description: "",
+        answers: [
+          { id: "a1", content: "Karim Benali a vu Sophie Martin à Lyon." },
+        ],
+        tokenOffsets: {
+          ...createCounters(),
+          [PII_TYPES.NAME]: 3,
+          [PII_TYPES.RESIDUAL]: 1,
+        },
+      }),
+    );
+
+    expect(result.answers[0].content).toBe(
+      "[NOM_5] [NOM_4] a vu [NOM_6] à [DONNEE_2].",
     );
   });
 });

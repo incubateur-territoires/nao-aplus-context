@@ -209,8 +209,28 @@ describe("teamRouter", () => {
           pendingUsers: { select: { id: true, email: true } },
           areas: true,
           organization: true,
+          createdBy: false,
         },
       });
+    });
+
+    it("selects the creator's name only for an admin", async () => {
+      (prisma.team.findUnique as jest.Mock).mockResolvedValue(mockTeam1);
+
+      const caller = createCaller({
+        userId: MOCK_IDS.USER_1,
+        user: createMockUser({ role: USER_ROLES.ADMIN }),
+      });
+
+      await caller.getTeamById(MOCK_IDS.TEAM_1);
+
+      expect(prisma.team.findUnique).toHaveBeenCalledWith(
+        expect.objectContaining({
+          include: expect.objectContaining({
+            createdBy: { select: { firstName: true, lastName: true } },
+          }),
+        }),
+      );
     });
 
     it("throws FORBIDDEN when checkTeamAccess denies access", async () => {
@@ -1025,6 +1045,7 @@ describe("teamRouter", () => {
           registrationNumber: "REG-NEW",
           role: OrganizationRole.HELPER,
           type: TeamType.OTHERS_HELPERS,
+          createdBy: { connect: { id: MOCK_IDS.USER_1 } },
           organization: { connect: { id: MOCK_IDS.ORG_1 } },
           areas: { connect: [{ id: MOCK_IDS.AREA_1 }] },
         },
@@ -1069,12 +1090,98 @@ describe("teamRouter", () => {
           registrationNumber: "REG-NEW",
           role: OrganizationRole.HELPER,
           type: TeamType.OTHERS_HELPERS,
+          createdBy: { connect: { id: MOCK_IDS.USER_1 } },
           organization: { connect: { id: MOCK_IDS.ORG_1 } },
           areas: { connect: [{ id: MOCK_IDS.AREA_1 }] },
           managers: { connect: { id: MOCK_IDS.USER_1 } },
           users: { connect: { id: MOCK_IDS.USER_1 } },
         },
       });
+    });
+
+    it("refuses a manager whose inherited team type is historical", async () => {
+      const { userIsManager } = jest.requireMock("@/utils/role");
+      (userIsManager as jest.Mock).mockReturnValueOnce(Promise.resolve(true));
+      (prisma.organization.findUniqueOrThrow as jest.Mock).mockResolvedValue({
+        type: TeamType.HISTORICAL_SOCIAL_WORKER,
+        role: OrganizationRole.HELPER,
+      });
+      (prisma.team.findMany as jest.Mock).mockResolvedValueOnce([
+        { type: TeamType.HISTORICAL_SOCIAL_WORKER },
+      ]);
+
+      const caller = createCaller({
+        userId: MOCK_IDS.USER_1,
+        user: createMockUser({ role: USER_ROLES.USER }),
+      });
+
+      await expect(
+        caller.createTeam({
+          name: "New Team",
+          organizationId: MOCK_IDS.ORG_1,
+          areaIds: [MOCK_IDS.AREA_1],
+        }),
+      ).rejects.toThrow(
+        "Les travailleurs sociaux historiques ne peuvent pas créer d'équipe.",
+      );
+      expect(prisma.team.create).not.toHaveBeenCalled();
+    });
+
+    it("refuses a manager with mixed types who chooses the historical type", async () => {
+      const { userIsManager } = jest.requireMock("@/utils/role");
+      (userIsManager as jest.Mock).mockReturnValueOnce(Promise.resolve(true));
+      (prisma.organization.findUniqueOrThrow as jest.Mock).mockResolvedValue({
+        type: TeamType.OTHERS_HELPERS,
+        role: OrganizationRole.HELPER,
+      });
+      (prisma.team.findMany as jest.Mock).mockResolvedValueOnce([
+        { type: TeamType.HISTORICAL_SOCIAL_WORKER },
+        { type: TeamType.OTHERS_HELPERS },
+      ]);
+
+      const caller = createCaller({
+        userId: MOCK_IDS.USER_1,
+        user: createMockUser({ role: USER_ROLES.USER }),
+      });
+
+      await expect(
+        caller.createTeam({
+          name: "New Team",
+          organizationId: MOCK_IDS.ORG_1,
+          areaIds: [MOCK_IDS.AREA_1],
+          type: TeamType.HISTORICAL_SOCIAL_WORKER,
+        }),
+      ).rejects.toThrow(
+        "Les travailleurs sociaux historiques ne peuvent pas créer d'équipe.",
+      );
+      expect(prisma.team.create).not.toHaveBeenCalled();
+    });
+
+    it("lets an admin create a historical team", async () => {
+      (prisma.organization.findUniqueOrThrow as jest.Mock).mockResolvedValue({
+        type: TeamType.HISTORICAL_SOCIAL_WORKER,
+        role: OrganizationRole.HELPER,
+      });
+      (prisma.team.create as jest.Mock).mockResolvedValue(mockTeam1);
+
+      const caller = createCaller({
+        userId: MOCK_IDS.USER_1,
+        user: createMockUser({ role: USER_ROLES.ADMIN }),
+      });
+
+      await caller.createTeam({
+        name: "Historical Team",
+        organizationId: MOCK_IDS.ORG_1,
+        areaIds: [MOCK_IDS.AREA_1],
+      });
+
+      expect(prisma.team.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            type: TeamType.HISTORICAL_SOCIAL_WORKER,
+          }),
+        }),
+      );
     });
 
     it("inherits organization type by default", async () => {

@@ -8,6 +8,7 @@ import { FileUploadField } from "../render-choice/render-choice-form/file-upload
 import { ToggleSwitches } from "../render-choice/render-choice-form/toggle-switches/toggle-switches";
 import { FormError } from "../render-choice/render-choice-form/form-error/form-error";
 import { Button } from "@codegouvfr/react-dsfr/Button";
+import { TaggingFeedback } from "./tagging-feedback/tagging-feedback";
 
 export enum ActionChoiceValue {
   IN_TREATMENT = "IN_TREATMENT",
@@ -79,6 +80,7 @@ function ActionChoiceComponent({ currentStatus, isAuthor }: ActionChoiceProps) {
       id="action-choice"
       className="p-4 md:p-8 lg:p-20 bg-white relative gap-4 flex flex-col mt-6"
     >
+      <TaggingFeedback />
       <h2 className="text-[32px] font-bold leading-[40px] text-[#161616] m-0">
         Répondre au signalement
       </h2>

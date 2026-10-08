@@ -1,6 +1,7 @@
 import { APICallError } from "ai";
 import { redactReport } from "@/lib/ai/redact-report";
 import { AlbertQuotaError } from "@/lib/ai/providers";
+import { createCounters } from "@/lib/ai/pseudonymize";
 import {
   pseudonymizeReportContent,
   type ReportContent,
@@ -104,6 +105,47 @@ describe("pseudonymizeReportContent", () => {
 
     await expect(pseudonymizeReportContent("r", report())).rejects.toThrow(
       "x is not a function",
+    );
+  });
+
+  it("ne caviarde que les morceaux demandés, avec les noms de tout le fil", async () => {
+    redact.mockResolvedValue({
+      subject: "",
+      description: "",
+      answers: [{ id: "a2", content: "R2" }],
+      matches: [],
+      guard: { ok: true, violations: [] },
+    });
+    const offsets = { ...createCounters(), NAME: 2 };
+
+    await pseudonymizeReportContent(
+      "r",
+      {
+        ...report(),
+        answers: [
+          {
+            id: "a1",
+            content: "Déjà fait",
+            author: { firstName: "Ana", lastName: "Roy" },
+          },
+          { id: "a2", content: "Nouvelle", author: null },
+        ],
+      },
+      {
+        includeReport: false,
+        answerIds: new Set(["a2"]),
+        tokenOffsets: offsets,
+      },
+    );
+
+    expect(redact).toHaveBeenCalledWith(
+      expect.objectContaining({
+        subject: "",
+        description: "",
+        answers: [{ id: "a2", content: "Nouvelle" }],
+        participantNames: ["Ana Roy"],
+        tokenOffsets: offsets,
+      }),
     );
   });
 });

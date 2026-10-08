@@ -4,6 +4,7 @@ import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useTRPC } from "@/trpc/client";
 import { MultiSelectAutocomplete } from "@/app/component/multi-select-autocomplete/multi-select-autocomplete";
+import { formatOrganizationLabel } from "@/utils/organization-label";
 
 interface TeamsFiltersProps {
   areaIds: string[];
@@ -33,12 +34,6 @@ export function TeamsFilters({
 
   // Lie chaque chip au texte d'aide « mise à jour automatique » (RGAA).
   const chipDescribedBy = { "aria-describedby": "teams-filters-hint" };
-
-  function getOrgLabel(org: (typeof orgOptions)[number]) {
-    return org.shortName && org.shortName !== org.name
-      ? `${org.name} (${org.shortName})`
-      : org.name;
-  }
 
   return (
     <div className="flex flex-col gap-2">
@@ -74,7 +69,7 @@ export function TeamsFilters({
               options={orgOptions}
               value={organizationIds}
               onChange={onOrganizationIdsChange}
-              getOptionLabel={getOrgLabel}
+              getOptionLabel={formatOrganizationLabel}
               renderOptionContent={(option) => (
                 <>
                   {option.name}

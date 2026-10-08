@@ -29,6 +29,7 @@ import { TEAM_TYPE_LABELS } from "@/constants/team-types";
 import { TeamType } from "@/generated/prisma/enums";
 import {
   HELPER_TYPE_OPTIONS,
+  MANAGER_HELPER_TYPE_OPTIONS,
   getTeamTypeOnOrganizationChange,
 } from "@/utils/team-type";
 
@@ -161,6 +162,18 @@ export function CreateTeamContent() {
     });
   }
 
+  if (inheritedTeamType === TeamType.HISTORICAL_SOCIAL_WORKER) {
+    return (
+      <div className="p-4 md:p-20 bg-white mt-8">
+        <Alert
+          severity="info"
+          title="Création d'équipe indisponible"
+          description="Les travailleurs sociaux historiques ne peuvent pas créer d'équipe. Contactez l'équipe Administration+ pour en ouvrir une nouvelle."
+        />
+      </div>
+    );
+  }
+
   return (
     <div className="p-4 md:p-20 bg-white mt-8">
       <h2 className="text-[32px] leading-[40px] font-bold text-[#161616]">
@@ -278,7 +291,10 @@ export function CreateTeamContent() {
                   stateRelatedMessage={
                     formMethods.formState.errors.type?.message
                   }
-                  options={HELPER_TYPE_OPTIONS.map((option) => ({
+                  options={(canChooseTeamType
+                    ? MANAGER_HELPER_TYPE_OPTIONS
+                    : HELPER_TYPE_OPTIONS
+                  ).map((option) => ({
                     label: option.label,
                     nativeInputProps: {
                       name: "teamType",

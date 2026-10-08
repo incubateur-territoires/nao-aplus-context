@@ -9,13 +9,7 @@ import Button from "@codegouvfr/react-dsfr/Button";
 import { createModal } from "@codegouvfr/react-dsfr/Modal";
 import { useTRPC } from "@/trpc/client";
 import { MultiSelectAutocomplete } from "@/app/component/multi-select-autocomplete/multi-select-autocomplete";
-
-// Libellé d'une organisation : « Nom (Sigle) » si un sigle distinct existe.
-function getOrgLabel(org: { name: string; shortName: string | null }) {
-  return org.shortName && org.shortName !== org.name
-    ? `${org.name} (${org.shortName})`
-    : org.name;
-}
+import { formatOrganizationLabel } from "@/utils/organization-label";
 
 const transformSchema = z
   .object({
@@ -174,7 +168,7 @@ export function TransformToSupervisorSection({
                       options={sortedOrganizations ?? []}
                       value={field.value}
                       onChange={field.onChange}
-                      getOptionLabel={getOrgLabel}
+                      getOptionLabel={formatOrganizationLabel}
                       renderOptionContent={(option) => (
                         <>
                           {option.name}

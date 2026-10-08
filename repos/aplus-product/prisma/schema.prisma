@@ -47,6 +47,10 @@ model Report {
   /// NULL = le texte est celui écrit par l'aidant.
   pseudonymizationStatus ReportPseudonymizationStatus?
 
+  pseudonymized           PseudonymizedReport?
+  pseudonymizationRefusal ReportPseudonymizationRefusal?
+  taggings                ReportTagging[]
+
   @@index([authorId])
   @@index([status])
   @@index([lastAnswerAt(sort: Desc)])
@@ -59,7 +63,7 @@ model Report {
 enum ReportPseudonymizationStatus {
   /// Texte remplacé : faux texte hérité, ou marqueur après renoncement.
   FAKE
-  /// Texte réel pseudonymisé, exploitable.
+  /// Texte pseudonymisé dans PseudonymizedReport/PseudonymizedAnswer ; vidé ici.
   DONE
 }
 
@@ -79,11 +83,89 @@ model Answer {
   hasStandardProcedure Boolean               @default(false)
   isMetadataOnly       Boolean               @default(false) // If true, the answer is only a metadata answer like a summary to invited groups or invited colleagues
   views                AnswerView[]
+  pseudonymized        PseudonymizedAnswer?
 
   @@index([reportId])
   @@index([reportId, createdAt(sort: Desc)]) // Optimise le tri par dernier message (LEFT JOIN LATERAL)
   @@index([authorId])
   @@index([reportId, isMetadataOnly])
+}
+
+// Texte pseudonymisé (jetons [NOM_n]…) de chaque signalement, tenu au fil de
+// l'eau et non plus seulement à la suppression : le cron de suppression et
+// l'étiquetage le réutilisent au lieu de repayer le caviardage.
+//
+// Sujet, description et réponses sont immuables : chaque morceau se caviarde
+// une fois et ne se réécrit jamais. Les jetons sont cohérents dans un même
+// appel ; un appel ultérieur numérote après ceux déjà posés, sans collision,
+// mais une même personne peut y recevoir un autre numéro.
+model PseudonymizedReport {
+  id          String   @id @default(uuid())
+  createdAt   DateTime @default(now())
+  reportId    String   @unique
+  report      Report   @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  subject     String
+  description String
+}
+
+model PseudonymizedAnswer {
+  id        String   @id @default(uuid())
+  createdAt DateTime @default(now())
+  answerId  String   @unique
+  answer    Answer   @relation(fields: [answerId], references: [id], onDelete: Cascade)
+  content   String
+}
+
+// Dernier refus du caviardage d'un signalement par le cron de pseudonymisation.
+// Sans elle, les refus resteraient en tête des candidats et videraient chaque
+// nuit le budget ; ils ne sont retentés qu'après un délai.
+model ReportPseudonymizationRefusal {
+  id        String   @id @default(uuid())
+  reportId  String   @unique
+  report    Report   @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  refusedAt DateTime
+}
+
+// Les deux étiquettes posées par le modèle sur le texte pseudonymisé, une ligne par
+// recette. `recipeKey` résume le modèle, le hash de la consigne, la température
+// et la version de la liste fermée : changer l'un d'eux ouvre une autre série.
+//
+// Le libellé fin est conservé à côté du tag fermé, pour ne jamais perdre le
+// détail. Libellé `null` : le modèle s'est abstenu. Tag `null` : le libellé
+// n'appartient pas à la liste. Le blocage n'est qu'une suggestion (61 % à
+// l'examen), la démarche est fiable (93 %).
+model ReportTagging {
+  id             String                 @id @default(uuid())
+  createdAt      DateTime               @default(now())
+  reportId       String
+  report         Report                 @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  recipeKey      String
+  procedureLabel String?
+  procedureTag   String?
+  blockageLabel  String?
+  blockageTag    String?
+  verdicts       ReportTaggingVerdict[]
+
+  @@unique([reportId, recipeKey])
+}
+
+// Avis d'un destinataire sur un étiquetage : une ligne par personne, une colonne
+// par axe comme dans `ReportTagging`. `null` : pas encore voté sur cet axe.
+// Le vote juge le libellé fin affiché (`procedureLabel`, `blockageLabel`), pas
+// le tag fermé : les taux se calculent par libellé.
+model ReportTaggingVerdict {
+  id                 String        @id @default(uuid())
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt
+  taggingId          String
+  tagging            ReportTagging @relation(fields: [taggingId], references: [id], onDelete: Cascade)
+  userId             String
+  user               User          @relation(fields: [userId], references: [id])
+  procedureIsCorrect Boolean?
+  blockageIsCorrect  Boolean?
+
+  @@unique([taggingId, userId])
+  @@index([userId])
 }
 
 enum StandardProcedure {
@@ -154,6 +236,11 @@ model User {
   twoFactor                 TwoFactor?
   notificationsViewedBefore DateTime?                    @default(now())
   goldenDatasetAnnotations  GoldenDatasetAnnotation[]
+  contactMessages           ContactMessage[]
+  createdTeams              Team[]                       @relation("TeamCreator")
+  taggingVerdicts           ReportTaggingVerdict[]
+  // « Ne plus jamais afficher ce bloc » d'évaluation des tags.
+  taggingFeedbackHiddenAt   DateTime?
 
   @@index([notificationFrequency, isInactive])
   @@map("User")
@@ -229,6 +316,7 @@ model Organization {
   type                  TeamType            @default(OTHERS_HELPERS)
   supervisors           Supervisor[]
   pendingSupervisors    PendingSupervisor[]
+  contacts              Contact[]
 }
 
 model Area {
@@ -242,6 +330,7 @@ model Area {
   teams              Team[]
   supervisors        Supervisor[]
   pendingSupervisors PendingSupervisor[]
+  contacts           Contact[]
 }
 
 model Team {
@@ -270,6 +359,8 @@ model Team {
   deactivatedUserSnapshots    DeactivatedUserTeamSnapshot[] @relation("DeactivatedUserTeams")
   deactivatedManagerSnapshots DeactivatedUserTeamSnapshot[] @relation("DeactivatedUserManagedTeams")
   deletedAt                   DateTime?
+  createdById                 String?
+  createdBy                   User?                         @relation("TeamCreator", fields: [createdById], references: [id], onDelete: SetNull)
 }
 
 model TeamSpecificField {
@@ -588,4 +679,46 @@ model GoldenDatasetPrediction {
 
   @@unique([runId, itemId])
   @@index([itemId])
+}
+
+enum ContactMessageDirection {
+  OUTBOUND
+  INBOUND
+}
+
+// Mini-CRM réservé aux admins : fiches de contact externes au service, sans
+// compte ni session. Aucun lien avec `User`, qui reste le modèle des comptes.
+model Contact {
+  id             String           @id @default(uuid())
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+  firstName      String
+  lastName       String
+  email          String           @unique
+  address        String?
+  areaId         String?
+  area           Area?            @relation(fields: [areaId], references: [id])
+  organizationId String?
+  organization   Organization?    @relation(fields: [organizationId], references: [id])
+  deletedAt      DateTime?
+  messages       ContactMessage[]
+
+  @@index([deletedAt, lastName, firstName])
+}
+
+model ContactMessage {
+  id             String                  @id @default(uuid())
+  createdAt      DateTime                @default(now())
+  contactId      String
+  contact        Contact                 @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  direction      ContactMessageDirection
+  subject        String
+  textContent    String
+  // Identifiant Brevo du message : unique pour rendre la réception du webhook
+  // idempotente, Brevo rejouant ses appels.
+  brevoMessageId String?                 @unique
+  sentById       String?
+  sentBy         User?                   @relation(fields: [sentById], references: [id], onDelete: SetNull)
+
+  @@index([contactId, createdAt])
 }

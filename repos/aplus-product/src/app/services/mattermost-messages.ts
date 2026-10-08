@@ -175,6 +175,84 @@ export function buildNoDeletedReportsMessage(): string {
 > Aucun signalement à supprimer aujourd'hui :white_check_mark:`;
 }
 
+export interface ReportPseudonymizationSummary {
+  reportsPseudonymized: number;
+  answersPseudonymized: number;
+  refused: number;
+  errors: { reportId: string }[];
+  outage: boolean;
+  callsUsed: number;
+  callLimit: number;
+  reportsAwaiting: number;
+  answersAwaiting: number;
+}
+
+export function buildReportPseudonymizationMessage(
+  summary: ReportPseudonymizationSummary,
+): string {
+  const lines: string[] = ["**CRON - Pseudonymisation des signalements**"];
+
+  if (summary.errors.length > 0) {
+    lines.push(
+      `> :x: **${summary.errors.length}** erreur(s) — ${sentryDetailLabel("cron:reports/pseudonymization")}`,
+    );
+  }
+
+  lines.push(
+    `> :lock: Pseudonymisés : **${summary.reportsPseudonymized}** signalement(s) · **${summary.answersPseudonymized}** réponse(s) · **${summary.refused}** refus`,
+    `> :hourglass: En attente : **${summary.reportsAwaiting}** signalement(s) · **${summary.answersAwaiting}** réponse(s)`,
+    `> :bar_chart: Appels au pipeline : **${summary.callsUsed}** / ${summary.callLimit}`,
+  );
+
+  if (summary.outage) {
+    lines.push(
+      "> :rotating_light: **Pipeline de caviardage indisponible.** Le run s'est arrêté ; rien n'est perdu, la suite repasse au prochain run.",
+    );
+  }
+
+  return lines.join("\n\n");
+}
+
+export interface ReportTaggingSummary {
+  model: string | null;
+  tagged: number;
+  refused: number;
+  errors: { reportId: string }[];
+  outage: boolean;
+  callsUsed: number;
+  callLimit: number;
+}
+
+export function buildReportTaggingMessage(
+  summary: ReportTaggingSummary,
+): string {
+  const lines: string[] = ["**CRON - Étiquetage des signalements**"];
+
+  if (summary.model === null) {
+    lines.push("> :label: Étiquetage non lancé : aucun modèle configuré");
+    return lines.join("\n\n");
+  }
+
+  if (summary.errors.length > 0) {
+    lines.push(
+      `> :x: **${summary.errors.length}** erreur(s) — ${sentryDetailLabel("cron:reports/tagging")}`,
+    );
+  }
+
+  lines.push(
+    `> :label: Étiquetés : **${summary.tagged}** · **${summary.refused}** refus`,
+    `> :bar_chart: Appels au pipeline : **${summary.callsUsed}** / ${summary.callLimit}`,
+  );
+
+  if (summary.outage) {
+    lines.push(
+      "> :rotating_light: **Pipeline indisponible.** L'étiquetage s'est arrêté ; rien n'est perdu, relancer plus tard reprend là où il s'est arrêté.",
+    );
+  }
+
+  return lines.join("\n\n");
+}
+
 export interface SoftDeletionSummary {
   usersDeleted: InactivityUserInfo[];
   emailErrors: { userId: string; error: string }[];

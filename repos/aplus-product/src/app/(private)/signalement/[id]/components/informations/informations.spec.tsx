@@ -71,6 +71,7 @@ describe("Informations", () => {
       banExpires: null,
       twoFactorEnabled: false,
       notificationsViewedBefore: null,
+      taggingFeedbackHiddenAt: null,
     },
     files: [],
     area: {
@@ -98,6 +99,7 @@ describe("Informations", () => {
         publicNote: null,
         internalSupportComment: null,
         deletedAt: null,
+        createdById: null,
         organization: {
           role: OrganizationRole.OPERATOR,
           type: TeamType.OPERATOR,
@@ -149,6 +151,7 @@ describe("Informations", () => {
       publicNote: null,
       internalSupportComment: null,
       deletedAt: null,
+      createdById: null,
     },
     colleagues: [],
     lastAnswerAt: null,

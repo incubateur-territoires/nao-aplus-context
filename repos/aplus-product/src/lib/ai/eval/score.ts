@@ -169,31 +169,59 @@ export function scoreCase(evalCase: PiiEvalCase, produced: string): CaseScore {
   };
 }
 
-/** Agrège les scores par catégorie de PII, pour situer les trous. */
+export function isMissed(
+  score: CaseScore | undefined,
+  expected: ExpectedPii,
+): boolean {
+  return (
+    score?.missed.some(
+      (entry) =>
+        entry.category === expected.category && entry.value === expected.value,
+    ) ?? false
+  );
+}
+
+export interface ScoreTotals {
+  expected: number;
+  missed: number;
+  destroyed: number;
+}
+
+export function summarizeScores(scores: CaseScore[]): ScoreTotals {
+  return scores.reduce(
+    (totals, score) => ({
+      expected: totals.expected + score.expected,
+      missed: totals.missed + score.missed.length,
+      destroyed: totals.destroyed + score.destroyed.length,
+    }),
+    { expected: 0, missed: 0, destroyed: 0 },
+  );
+}
+
+/**
+ * Agrège les scores par catégorie de PII et par couche attendue, pour situer
+ * les trous : un nom de citoyen mal orthographié n'est pas l'affaire de la couche A.
+ */
 export function scoreByCategory(
   cases: PiiEvalCase[],
   scores: CaseScore[],
 ): CategoryScore[] {
-  const byCategory = new Map<PiiCategory, CategoryScore>();
+  const byCategory = new Map<string, CategoryScore>();
 
   for (const evalCase of cases) {
     const score = scores.find((entry) => entry.case === evalCase.label);
     for (const expected of evalCase.mustRedact) {
-      const current = byCategory.get(expected.category) ?? {
+      const key = `${expected.category}:${expected.layer}`;
+      const current = byCategory.get(key) ?? {
         category: expected.category,
         layer: expected.layer,
         expected: 0,
         redacted: 0,
         recall: 0,
       };
-      const isMissed = score?.missed.some(
-        (entry) =>
-          entry.category === expected.category &&
-          entry.value === expected.value,
-      );
       current.expected += 1;
-      if (!isMissed) current.redacted += 1;
-      byCategory.set(expected.category, current);
+      if (!isMissed(score, expected)) current.redacted += 1;
+      byCategory.set(key, current);
     }
   }
 
@@ -205,7 +233,7 @@ export function scoreByCategory(
     .sort((a, b) => a.recall - b.recall);
 }
 
-function percent(ratio: number): string {
+export function percent(ratio: number): string {
   return `${Math.round(ratio * 100)} %`;
 }
 

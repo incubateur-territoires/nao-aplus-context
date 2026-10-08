@@ -152,6 +152,7 @@ describe("RequestContent", () => {
       banExpires: null,
       twoFactorEnabled: false,
       notificationsViewedBefore: null,
+      taggingFeedbackHiddenAt: null,
     },
     files: [
       {
@@ -188,6 +189,7 @@ describe("RequestContent", () => {
         publicNote: null,
         internalSupportComment: null,
         deletedAt: null,
+        createdById: null,
         organization: {
           role: OrganizationRole.OPERATOR,
           type: TeamType.OPERATOR,
@@ -236,6 +238,7 @@ describe("RequestContent", () => {
         publicNote: null,
         internalSupportComment: null,
         deletedAt: null,
+        createdById: null,
         organization: {
           role: OrganizationRole.OPERATOR,
           type: TeamType.OPERATOR,
@@ -287,6 +290,7 @@ describe("RequestContent", () => {
       publicNote: null,
       internalSupportComment: null,
       deletedAt: null,
+      createdById: null,
     },
     colleagues: [
       {

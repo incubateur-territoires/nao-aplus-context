@@ -92,6 +92,9 @@ export default async function RequestPage({
     ...(report?.coAuthors?.map((coAuthor) => coAuthor.id) ?? []),
   ];
   const isAuthor = authorsIds.includes(currentUser?.id ?? "");
+  if (!isAuthor) {
+    prefetch(trpc.taggingFeedback.get.queryOptions({ reportId: id }));
+  }
 
   return (
     <HydrateClient>

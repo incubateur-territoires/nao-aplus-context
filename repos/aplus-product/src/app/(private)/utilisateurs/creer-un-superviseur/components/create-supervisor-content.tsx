@@ -15,13 +15,7 @@ import {
   createSupervisorSchema,
   type CreateSupervisorFormValues,
 } from "./create-supervisor-schema";
-
-// Libellé d'une organisation : « Nom (Sigle) » si un sigle distinct existe.
-function getOrgLabel(org: { name: string; shortName: string | null }) {
-  return org.shortName && org.shortName !== org.name
-    ? `${org.name} (${org.shortName})`
-    : org.name;
-}
+import { formatOrganizationLabel } from "@/utils/organization-label";
 
 export function CreateSupervisorContent() {
   const router = useRouter();
@@ -144,7 +138,7 @@ export function CreateSupervisorContent() {
                   options={sortedOrganizations ?? []}
                   value={field.value}
                   onChange={field.onChange}
-                  getOptionLabel={getOrgLabel}
+                  getOptionLabel={formatOrganizationLabel}
                   renderOptionContent={(option) => (
                     <>
                       {option.name}

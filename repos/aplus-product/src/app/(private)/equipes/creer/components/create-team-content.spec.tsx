@@ -844,6 +844,69 @@ describe("CreateTeamContent", () => {
     });
   });
 
+  describe("historical social worker manager", () => {
+    const helperOrganization = createMockOrganizationFull({
+      id: "org-helper",
+      name: "Aidants",
+      shortName: "AID",
+      role: OrganizationRole.HELPER,
+      type: TeamType.OTHERS_HELPERS,
+    });
+
+    function setupManager(managerTeamTypeInfo: {
+      type: TeamType | null;
+      hasDifferentTypes: boolean;
+    }) {
+      setupMocks({ organizations: [helperOrganization, mockOrganization2] });
+      (useSession as jest.Mock).mockReturnValue({
+        data: { user: { id: MOCK_IDS.USER_1, role: USER_ROLES.USER } },
+        isPending: false,
+      });
+      const defaultUseQuery = (useQuery as jest.Mock).getMockImplementation();
+      (useQuery as jest.Mock).mockImplementation((options) => {
+        if (
+          JSON.stringify(options.queryKey).includes(
+            "getManagerInheritedTeamType",
+          )
+        ) {
+          return { data: managerTeamTypeInfo, isLoading: false };
+        }
+        return defaultUseQuery?.(options);
+      });
+    }
+
+    it("replaces the form with an alert when the inherited type is historical", () => {
+      setupManager({
+        type: TeamType.HISTORICAL_SOCIAL_WORKER,
+        hasDifferentTypes: false,
+      });
+
+      render(<CreateTeamContent />);
+
+      expect(
+        screen.getByText("Création d'équipe indisponible"),
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByRole("button", { name: "Créer l'équipe" }),
+      ).not.toBeInTheDocument();
+    });
+
+    it("does not offer the historical type to a manager choosing between types", async () => {
+      setupManager({ type: null, hasDifferentTypes: true });
+      const user = userEvent.setup();
+
+      render(<CreateTeamContent />);
+
+      const orgSelect = screen.getByLabelText(/Type d'organisation/);
+      await user.selectOptions(orgSelect, "org-helper");
+
+      expect(screen.getByLabelText("Autres aidants")).toBeInTheDocument();
+      expect(
+        screen.queryByLabelText("Travailleurs sociaux historiques"),
+      ).not.toBeInTheDocument();
+    });
+  });
+
   describe("existing teams alert", () => {
     it("renders ExistingTeamsAlert when existing teams are found", async () => {
       const user = userEvent.setup();

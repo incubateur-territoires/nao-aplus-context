@@ -1,15 +1,10 @@
 import type { GoldenTagAxis } from "@/utils/golden-dataset-golden-tags";
 import type { GoldenSplit } from "@/utils/golden-dataset-split";
+import { sameTag, UNDETERMINED_GOLDEN_TAG } from "@/utils/golden-dataset-tag";
 import {
-  NO_BLOCKAGE_GOLDEN_TAG,
-  OTHER_GOLDEN_TAG,
-  sameTag,
-  UNDETERMINED_GOLDEN_TAG,
-} from "@/utils/golden-dataset-tag";
-import {
+  closedTagOfLabel,
   closedTagsOf,
   MIN_ITEMS_PER_TAG,
-  projectAxis,
   type ClosedTaxonomy,
 } from "@/utils/golden-dataset-taxonomy";
 
@@ -165,20 +160,7 @@ function predictedClosedTag(
     );
   }
 
-  // Les exutoires se répondent tels quels dans tous les modes : ce ne sont pas des libellés fins.
-  const exit = closedTagsOf(taxonomy, axis).find(
-    (tag) =>
-      [OTHER_GOLDEN_TAG, UNDETERMINED_GOLDEN_TAG, NO_BLOCKAGE_GOLDEN_TAG].some(
-        (exitTag) => sameTag(tag, exitTag),
-      ) && sameTag(tag, label),
-  );
-  if (exit !== undefined) {
-    return exit;
-  }
-
-  const projection = projectAxis(taxonomy, axis, label);
-
-  return projection.kind === "projected" ? projection.closedTag : OFF_LIST;
+  return closedTagOfLabel(taxonomy, axis, label) ?? OFF_LIST;
 }
 
 interface Observation {

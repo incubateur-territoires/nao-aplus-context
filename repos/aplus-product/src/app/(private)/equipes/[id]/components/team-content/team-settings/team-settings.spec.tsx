@@ -383,4 +383,64 @@ describe("TeamSettings", () => {
       expect(submitButton).toBeDisabled();
     });
   });
+
+  describe("création de l'équipe", () => {
+    function mockTeamQuery(
+      createdBy: {
+        firstName: string;
+        lastName: string;
+      } | null,
+    ) {
+      (useQuery as jest.Mock).mockReturnValue({
+        data: {
+          ...mockTeam,
+          createdAt: new Date("2026-06-14T10:00:00Z"),
+          areas: [{ timezone: "Europe/Paris" }],
+          createdBy,
+        },
+        isLoading: false,
+      });
+    }
+
+    it("affiche la date et le créateur à un admin", () => {
+      (useSession as jest.Mock).mockReturnValue({
+        data: { user: { id: MOCK_IDS.USER_2, role: "admin" } },
+      });
+      mockTeamQuery({ firstName: "Jeanne", lastName: "Martin" });
+
+      render(<TeamSettings teamId={MOCK_IDS.TEAM_1} />, {
+        wrapper: createWrapper(),
+      });
+
+      expect(
+        screen.getByText("Équipe créée le 14/06/2026 par Jeanne Martin."),
+      ).toBeInTheDocument();
+    });
+
+    it("n'affiche que la date quand le créateur est inconnu", () => {
+      (useSession as jest.Mock).mockReturnValue({
+        data: { user: { id: MOCK_IDS.USER_2, role: "admin" } },
+      });
+      mockTeamQuery(null);
+
+      render(<TeamSettings teamId={MOCK_IDS.TEAM_1} />, {
+        wrapper: createWrapper(),
+      });
+
+      expect(
+        screen.getByText("Équipe créée le 14/06/2026."),
+      ).toBeInTheDocument();
+    });
+
+    it("ne l'affiche pas à un responsable d'équipe", () => {
+      mockTeamQuery({ firstName: "Jeanne", lastName: "Martin" });
+
+      render(<TeamSettings teamId={MOCK_IDS.TEAM_1} />, {
+        wrapper: createWrapper(),
+      });
+
+      expect(screen.getByText("Informations de l'équipe")).toBeInTheDocument();
+      expect(screen.queryByText(/Équipe créée le/)).not.toBeInTheDocument();
+    });
+  });
 });

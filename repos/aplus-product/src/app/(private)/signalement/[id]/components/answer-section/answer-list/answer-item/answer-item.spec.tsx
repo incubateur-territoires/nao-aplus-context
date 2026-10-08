@@ -66,6 +66,7 @@ const mockAnswer: AnswerType = {
     banExpires: null,
     twoFactorEnabled: false,
     notificationsViewedBefore: null,
+    taggingFeedbackHiddenAt: null,
     teams: [
       {
         ...createMockReportTeam({

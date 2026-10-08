@@ -15,6 +15,8 @@ import {
 } from "../team-settings-schema";
 import { useSession } from "@/app/component/auth-provider/auth-provider";
 import { USER_ROLES } from "@/constants/user-roles";
+import { formatDate } from "@/utils/format";
+import { getTeamTimezone } from "@/utils/timezone";
 
 export function TeamSettings({ teamId }: { teamId: string }) {
   const trpc = useTRPC();
@@ -99,7 +101,18 @@ export function TeamSettings({ teamId }: { teamId: string }) {
   return (
     <div className="p-4 md:p-20 bg-white relative mt-5">
       <div className="flex flex-col gap-4">
-        <h2>Informations de l&apos;équipe</h2>
+        <div>
+          <h2 className="fr-mb-1w">Informations de l&apos;équipe</h2>
+          {isAdmin && (
+            <p className="fr-text--sm fr-text-mention--grey fr-mb-0">
+              Équipe créée le{" "}
+              {formatDate(team.createdAt, getTeamTimezone(team))}
+              {team.createdBy &&
+                ` par ${team.createdBy.firstName} ${team.createdBy.lastName}`}
+              .
+            </p>
+          )}
+        </div>
 
         {showSuccessAlert && (
           <div ref={alertRef} tabIndex={-1}>

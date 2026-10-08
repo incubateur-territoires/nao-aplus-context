@@ -6,6 +6,7 @@ const ALLOWED_TABLES: Record<string, readonly string[]> = {
   Report: ["subject", "firstName", "lastName"],
   User: ["firstName", "lastName", "email"],
   PendingUser: ["firstName", "lastName", "email"],
+  Contact: ["firstName", "lastName", "email"],
 };
 
 // Condition appliquée en amont du LIMIT, pour que les lignes exclues de l'UI
@@ -13,6 +14,8 @@ const ALLOWED_TABLES: Record<string, readonly string[]> = {
 const BASE_CONDITIONS: Record<string, string> = {
   // Les signalements supprimés (soft delete) ne sont jamais recherchables
   Report: `"status" <> 'DELETED'`,
+  // Les contacts supprimés (soft delete) ne sont jamais recherchables
+  Contact: `"deletedAt" IS NULL`,
 };
 
 /**

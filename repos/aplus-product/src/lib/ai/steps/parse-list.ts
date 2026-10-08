@@ -4,8 +4,8 @@
  * demande « des valeurs séparées par des virgules, ou AUCUN ».
  */
 
-/** Réponse signalant qu'il n'y a rien à lister. */
-const EMPTY_ANSWER = /^aucune?s?\.?$/i;
+/** Réponse signalant qu'il n'y a rien à lister, même entourée de crochets, guillemets ou gras. */
+const EMPTY_ANSWER = /^[\s[("«*`]*aucune?s?[\s\])"»*`.]*$/i;
 
 /** Jeton déjà posé, éventuellement imbriqué : jamais une valeur à traiter. */
 const PLACEHOLDER = /\[+[A-Z_]+_\d+\]+/g;

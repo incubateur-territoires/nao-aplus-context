@@ -3,6 +3,7 @@
 import { MainNavigation } from "@codegouvfr/react-dsfr/MainNavigation";
 import { usePathname, useSearchParams } from "next/navigation";
 import { ROUTE } from "../../../constant/route";
+import { isNavItemActive } from "@/utils/nav-active";
 
 interface NavigationClientProps {
   canAccessUsers: boolean;
@@ -31,8 +32,8 @@ export function NavigationClient({
             href: ROUTE.ALL_REPORTS,
           },
           isActive:
-            fullPath.includes(ROUTE.ALL_REPORTS) ||
-            fullPath.includes(ROUTE.REPORT),
+            pathname.startsWith(ROUTE.ALL_REPORTS) ||
+            pathname.startsWith(ROUTE.REPORT),
         },
         {
           text: "Équipes",
@@ -52,17 +53,6 @@ export function NavigationClient({
               },
             ]
           : []),
-        ...(isAdmin
-          ? [
-              {
-                text: "Administration",
-                linkProps: {
-                  href: ROUTE.ADMINISTRATION,
-                },
-                isActive: fullPath.includes(ROUTE.ADMINISTRATION),
-              },
-            ]
-          : []),
         {
           text: "Statistiques",
           linkProps: {
@@ -75,8 +65,36 @@ export function NavigationClient({
           linkProps: {
             href: ROUTE.CONTACT,
           },
-          isActive: fullPath.includes(ROUTE.CONTACT),
+          isActive: isNavItemActive(fullPath, ROUTE.CONTACT),
         },
+        ...(isAdmin
+          ? [
+              {
+                text: "Administration",
+                isActive: isNavItemActive(fullPath, ROUTE.ADMINISTRATION),
+                menuLinks: [
+                  {
+                    text: "Bandeau",
+                    linkProps: { href: ROUTE.ADMIN_BANNER },
+                    isActive: isNavItemActive(fullPath, ROUTE.ADMIN_BANNER),
+                  },
+                  {
+                    text: "Signalements anonymisés",
+                    linkProps: { href: ROUTE.ANONYMIZED_REPORTS },
+                    isActive: isNavItemActive(
+                      fullPath,
+                      ROUTE.ANONYMIZED_REPORTS,
+                    ),
+                  },
+                  {
+                    text: "CRM",
+                    linkProps: { href: ROUTE.CONTACTS },
+                    isActive: isNavItemActive(fullPath, ROUTE.CONTACTS),
+                  },
+                ],
+              },
+            ]
+          : []),
       ]
     : [
         {
@@ -98,7 +116,7 @@ export function NavigationClient({
           linkProps: {
             href: ROUTE.CONTACT,
           },
-          isActive: fullPath.includes(ROUTE.CONTACT),
+          isActive: isNavItemActive(fullPath, ROUTE.CONTACT),
         },
       ];
 

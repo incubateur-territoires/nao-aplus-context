@@ -1,8 +1,11 @@
 import { PII_TYPES } from "@/types/ai-pipeline";
 import {
+  createCounters,
   findBirthDate,
+  highestTokens,
   parseBirthDate,
   pseudonymize,
+  pseudonymizeFields,
   pseudonymizeReport,
   redactNames,
 } from "./pseudonymize";
@@ -267,6 +270,22 @@ describe("pseudonymizeReport — date de naissance connue", () => {
     expect(result.description).toBe(text);
   });
 
+  it.each([
+    ["mois 25, saisie à l'américaine", "05/25/1980"],
+    ["mois 0, saisie bouche-trou", "00/00/1980"],
+  ])(
+    "caviarde sans planter une date au mois hors bornes : %s",
+    (_label, birthDate) => {
+      const result = pseudonymizeReport(
+        { subject: "", description: `Né le ${birthDate}, dossier bloqué.` },
+        { birthDate },
+      );
+      expect(result.description).toBe(
+        "Né le [DATE_NAISSANCE_1], dossier bloqué.",
+      );
+    },
+  );
+
   it("ignore une date de naissance illisible", () => {
     const text = "Né un jeudi, dossier bloqué.";
     const result = pseudonymizeReport(
@@ -373,5 +392,32 @@ describe("pseudonymizeReport — morphologie des noms", () => {
       { lastName: "Nguyen-Legrand" },
     );
     expect(result.description).toBe("Mme [NOM_1] relance depuis mars.");
+  });
+});
+
+describe("numérotation des jetons entre deux caviardages", () => {
+  it("relève le plus haut numéro déjà posé, par type", () => {
+    const counters = highestTokens([
+      "[NOM_2] a écrit à [NOM_10] au sujet du [DOSSIER_1].",
+      "Joint au [NUMERO_3], rien d'autre : [NOM_X] n'est pas un jeton.",
+    ]);
+
+    expect(counters[PII_TYPES.NAME]).toBe(10);
+    expect(counters[PII_TYPES.CASE_NUMBER]).toBe(1);
+    expect(counters[PII_TYPES.NUMBER]).toBe(3);
+    expect(counters[PII_TYPES.EMAIL]).toBe(0);
+  });
+
+  it("numérote après les jetons déjà posés", () => {
+    const offsets = { ...createCounters(), [PII_TYPES.NAME]: 4 };
+    const { fields } = pseudonymizeFields(
+      [{ key: "answer:a1", text: "Merci Karim Benali." }],
+      { firstName: "Karim", lastName: "Benali" },
+      [],
+      offsets,
+    );
+
+    expect(fields[0].text).toBe("Merci [NOM_6] [NOM_5].");
+    expect(offsets[PII_TYPES.NAME]).toBe(4);
   });
 });

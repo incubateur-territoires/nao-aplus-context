@@ -55,6 +55,14 @@ export function shouldEraseContent(decision: ErasureDecision): boolean {
   return decision.now >= deadline;
 }
 
+/**
+ * Caviardages menés de front. Le fournisseur plafonne les requêtes par minute et
+ * chaque dossier en coûte au moins deux. À 4, un audit sur mille dossiers réels
+ * a épuisé ses tentatives sur des 429 ; à 2, le run reste bien plus court qu'en
+ * séquentiel sans saturer le plafond.
+ */
+export const REDACTION_CONCURRENCY = 2;
+
 /** Le pipeline de pseudonymisation est-il activé sur cet environnement ? */
 export function isPseudonymizationEnabled(): boolean {
   return process.env.REPORT_PSEUDONYMIZATION_ENABLED === "true";

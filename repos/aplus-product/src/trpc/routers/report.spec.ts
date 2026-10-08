@@ -11,6 +11,18 @@ import {
 } from "@/test/mocks";
 import { sendTemplatedEmail } from "@/app/services/email/email.service";
 import { checkReportAccess } from "../middleware/authorization";
+import { pseudonymizeAndTagNewReport } from "@/app/services/report/report-intake-ai";
+
+const afterCallbacks: Array<() => void | Promise<void>> = [];
+jest.mock("next/server", () => ({
+  after: (cb: () => void | Promise<void>) => {
+    afterCallbacks.push(cb);
+  },
+}));
+
+jest.mock("@/app/services/report/report-intake-ai", () => ({
+  pseudonymizeAndTagNewReport: jest.fn().mockResolvedValue(undefined),
+}));
 
 jest.mock("../middleware/authorization", () => ({
   checkCoAuthorsInApplicantTeam: jest.fn(),
@@ -70,6 +82,7 @@ const createCaller = createCallerFactory(reportRouter);
 describe("reportRouter", () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    afterCallbacks.length = 0;
     (prisma.answer.findMany as jest.Mock).mockResolvedValue([]);
     (prisma.notificationView.findMany as jest.Mock).mockResolvedValue([]);
   });
@@ -516,6 +529,54 @@ describe("reportRouter", () => {
 
       expect(result).toEqual({ success: true });
       expect(prisma.$transaction).toHaveBeenCalled();
+    });
+
+    it("planifie le caviardage et l'étiquetage après la réponse", async () => {
+      (prisma.$transaction as jest.Mock).mockImplementation(async (callback) =>
+        callback({
+          report: {
+            create: jest.fn().mockResolvedValue({ id: MOCK_IDS.REPORT_1 }),
+          },
+          reportStatusHistory: { create: jest.fn().mockResolvedValue({}) },
+        }),
+      );
+      const caller = createCaller({
+        userId: MOCK_IDS.USER_1,
+        user: createMockUser(),
+      });
+
+      await caller.createReport(mockInput);
+
+      expect(pseudonymizeAndTagNewReport).not.toHaveBeenCalled();
+      expect(afterCallbacks).toHaveLength(1);
+      await afterCallbacks[0]();
+      expect(pseudonymizeAndTagNewReport).toHaveBeenCalledWith(
+        prisma,
+        MOCK_IDS.REPORT_1,
+      );
+    });
+
+    it("crée le signalement même si le caviardage échoue", async () => {
+      (pseudonymizeAndTagNewReport as jest.Mock).mockRejectedValueOnce(
+        new Error("albert"),
+      );
+      (prisma.$transaction as jest.Mock).mockImplementation(async (callback) =>
+        callback({
+          report: {
+            create: jest.fn().mockResolvedValue({ id: MOCK_IDS.REPORT_1 }),
+          },
+          reportStatusHistory: { create: jest.fn().mockResolvedValue({}) },
+        }),
+      );
+      const caller = createCaller({
+        userId: MOCK_IDS.USER_1,
+        user: createMockUser(),
+      });
+
+      const result = await caller.createReport(mockInput);
+
+      expect(result).toEqual({ success: true });
+      await expect(afterCallbacks[0]()).rejects.toThrow("albert");
     });
 
     it("throws UNAUTHORIZED when userId is not in context", async () => {

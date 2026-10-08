@@ -1,5 +1,6 @@
 import { protectedProcedure, createTRPCRouter } from "../init";
 import { TRPCError } from "@trpc/server";
+import { after } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { reportFormSchemaWithFileObjects } from "@/app/component/request-form/request-form.schema";
@@ -17,6 +18,7 @@ import {
 } from "@/generated/prisma/enums";
 import { Prisma } from "@/generated/prisma/client";
 import { sendTemplatedEmail } from "@/app/services/email/email.service";
+import { pseudonymizeAndTagNewReport } from "@/app/services/report/report-intake-ai";
 import { buildReportUrl } from "@/utils/report-url";
 import { getReportAreaFromApplicantTeam } from "@/utils/report-area";
 import { clientReportStatusSchema } from "@/utils/report-status-input";
@@ -158,9 +160,10 @@ function buildSqlFilters(filters: LastMessageSortFilters): {
       // Superviseur sans périmètre → aucun résultat
       conditions.push("FALSE");
     } else if (!filters.isAdminUser) {
+      // UNION plutôt que OR : le OR avec sous-requête force un parcours complet de "Report"
       params.push(filters.userId);
       conditions.push(
-        `(r."authorId" = $${idx} OR r."id" IN (SELECT "A" FROM "_ReportCoAuthors" WHERE "B" = $${idx}))`,
+        `r."id" IN (SELECT "id" FROM "Report" WHERE "authorId" = $${idx} UNION SELECT "A" FROM "_ReportCoAuthors" WHERE "B" = $${idx})`,
       );
       idx++;
     }
@@ -1164,6 +1167,9 @@ export const reportRouter = createTRPCRouter({
         // Log error but don't fail the report creation
         console.error("Failed to send report creation emails:", error);
       }
+
+      // Plusieurs appels à Albert : la réponse ne les attend pas.
+      after(() => pseudonymizeAndTagNewReport(prisma, report.id));
 
       return {
         success: true,

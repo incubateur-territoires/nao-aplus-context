@@ -199,6 +199,7 @@ const mockRequest = {
     twoFactorEnabled: false,
     hasViewed: false,
     notificationsViewedBefore: null,
+    taggingFeedbackHiddenAt: null,
     createdAt: new Date(),
     updatedAt: new Date(),
   },

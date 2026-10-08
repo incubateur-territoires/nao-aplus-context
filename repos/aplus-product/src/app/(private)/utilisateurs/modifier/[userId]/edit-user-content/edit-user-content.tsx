@@ -23,6 +23,7 @@ import { ReactivateUserButton } from "@/app/(private)/utilisateurs/components/re
 import { RemovalDebugPreview } from "@/app/(private)/equipes/[id]/components/team-content/team-content-columns/team-content-columns";
 import { TransformToSupervisorSection } from "@/app/(private)/utilisateurs/modifier/[userId]/transform-to-supervisor-section/transform-to-supervisor-section";
 import { UserAnalyticsSection } from "./components/user-analytics-section/user-analytics-section";
+import { formatOrganizationLabel } from "@/utils/organization-label";
 
 const editUserSchema = z.object({
   email: z
@@ -43,13 +44,6 @@ const editUserSchema = z.object({
 });
 
 type EditUserFormValues = z.infer<typeof editUserSchema>;
-
-// Libellé d'une organisation : « Nom (Sigle) » si un sigle distinct existe.
-function getOrgLabel(org: { name: string; shortName: string | null }) {
-  return org.shortName && org.shortName !== org.name
-    ? `${org.name} (${org.shortName})`
-    : org.name;
-}
 
 interface EditUserContentProps {
   userId: string;
@@ -529,7 +523,7 @@ export function EditUserContent({ userId }: EditUserContentProps) {
                             options={sortedOrganizations ?? []}
                             value={field.value}
                             onChange={field.onChange}
-                            getOptionLabel={getOrgLabel}
+                            getOptionLabel={formatOrganizationLabel}
                             renderOptionContent={(option) => (
                               <>
                                 {option.name}

@@ -81,6 +81,7 @@ describe("AuthorInfos", () => {
       banExpires: null,
       twoFactorEnabled: false,
       notificationsViewedBefore: null,
+      taggingFeedbackHiddenAt: null,
     },
     files: [],
     area: {

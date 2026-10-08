@@ -9,6 +9,7 @@ import { useSession } from "@/lib/auth-client";
 import { USER_ROLES } from "@/constants/user-roles";
 import { ROUTE } from "@/app/constant/route";
 import Button from "@codegouvfr/react-dsfr/Button";
+import { TeamType } from "@/generated/prisma/enums";
 
 const ITEMS_PER_PAGE = 10;
 
@@ -24,6 +25,9 @@ export function UserContent() {
     }),
     placeholderData: keepPreviousData,
   });
+  const { data: managerTeamTypeInfo } = useQuery(
+    trpc.team.getManagerInheritedTeamType.queryOptions(),
+  );
   const { data: session } = useSession();
   const currentUser = session?.user;
   const isManagerOfAnyTeam =
@@ -32,7 +36,10 @@ export function UserContent() {
     ) ?? false;
 
   const isAdmin = currentUser?.role === USER_ROLES.ADMIN;
-  const canCreateTeam = isManagerOfAnyTeam || isAdmin;
+  const isHistoricalSocialWorker =
+    managerTeamTypeInfo?.type === TeamType.HISTORICAL_SOCIAL_WORKER;
+  const canCreateTeam =
+    isAdmin || (isManagerOfAnyTeam && !isHistoricalSocialWorker);
   const totalPages = teams?.totalPages ?? 0;
 
   return (

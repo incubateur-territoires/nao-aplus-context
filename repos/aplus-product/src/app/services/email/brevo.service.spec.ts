@@ -77,6 +77,24 @@ describe("brevo.service", () => {
       });
     });
 
+    it("never sends Brevo a blank params object with a template", async () => {
+      process.env.BREVO_API_KEY = "test-api-key";
+      const mockApi = new Brevo.TransactionalEmailsApi();
+      (mockApi.sendTransacEmail as jest.Mock).mockResolvedValue({
+        body: { messageId: "msg-123" },
+      });
+
+      await sendBrevoEmail({
+        to: [{ email: "recipient@test.com" }],
+        subject: "Compte supprimé",
+        templateId: 44,
+        params: {},
+      });
+
+      const sent = (mockApi.sendTransacEmail as jest.Mock).mock.calls[0][0];
+      expect(Object.keys(sent.params).length).toBeGreaterThan(0);
+    });
+
     it("sends email successfully with html content", async () => {
       process.env.BREVO_API_KEY = "test-api-key";
       process.env.BREVO_SENDER_EMAIL = "sender@test.com";

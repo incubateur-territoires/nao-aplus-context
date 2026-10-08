@@ -5,6 +5,11 @@ export const HELPER_TYPE_OPTIONS = TEAM_TYPE_OPTIONS.filter(
   (option) => option.value !== TeamType.OPERATOR,
 );
 
+// Un responsable ne peut pas créer d'équipe de type historique.
+export const MANAGER_HELPER_TYPE_OPTIONS = HELPER_TYPE_OPTIONS.filter(
+  (option) => option.value !== TeamType.HISTORICAL_SOCIAL_WORKER,
+);
+
 interface OrganizationLike {
   type: TeamType;
 }

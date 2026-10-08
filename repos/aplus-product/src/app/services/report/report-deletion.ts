@@ -15,13 +15,21 @@ import { deleteFileFromBucket } from "@/utils/s3";
 import { createLogger } from "@/utils/logger";
 import {
   API_FAILURE_THRESHOLD,
+  REDACTION_CONCURRENCY,
   isPseudonymizationEnabled,
   shouldEraseContent,
 } from "@/utils/pseudonymization-policy";
 import {
+  assemblePseudonymizedContent,
+  clearedContent,
+} from "@/utils/pseudonymized-report";
+import {
+  REPORT_CONTENT_WITH_PSEUDONYMIZED_SELECT,
+  discardPseudonymizedPieces,
+  pseudonymizeMissingPieces,
+} from "./pseudonymized-report";
+import {
   PSEUDONYMIZATION_OUTCOMES,
-  REPORT_CONTENT_SELECT,
-  pseudonymizeReportContent,
   type PseudonymizationOutcome,
   type PseudonymizedContent,
 } from "./report-pseudonymization";
@@ -41,14 +49,6 @@ const BATCH_SIZE = 50;
  * à l'autre. Les signalements non traités repassent au run suivant.
  */
 const MAX_PSEUDONYMIZATIONS_PER_RUN = 900;
-
-/**
- * Caviardages menés de front. Le fournisseur plafonne les requêtes par minute et
- * chaque dossier en coûte au moins deux. À 4, un audit sur mille dossiers réels
- * a épuisé ses tentatives sur des 429 ; à 2, le run reste bien plus court qu'en
- * séquentiel sans saturer le plafond.
- */
-export const REDACTION_CONCURRENCY = 2;
 
 /**
  * Le défaut de Prisma (5 s) ne suffit pas à un long fil d'échanges : dépassé à
@@ -97,6 +97,8 @@ interface RunState {
   pseudonymizationEnabled: boolean;
   apiFailures: number;
   pseudonymized: number;
+  /** Dossiers dont tous les morceaux étaient déjà pseudonymisés : aucun appel. */
+  reused: number;
   erased: number;
 }
 
@@ -139,10 +141,11 @@ interface PseudonymizationStep {
 }
 
 /**
- * Tente le caviardage si le pipeline est activé et si le budget du run le
- * permet. L'issue est rendue telle quelle : seul un REFUS prouve que le pipeline
- * a examiné ce contenu et n'a pas su le traiter, et lui seul peut conduire à
- * renoncer. Une panne ne prouve rien sur le dossier.
+ * Reprend le texte déjà pseudonymisé s'il couvre tout le dossier, sans appel.
+ * Sinon caviarde les morceaux manquants, si le budget du run le permet. L'issue
+ * est rendue telle quelle : seul un REFUS prouve que le pipeline a examiné ce
+ * contenu et n'a pas su le traiter, et lui seul peut conduire à renoncer. Une
+ * panne ne prouve rien sur le dossier.
  */
 async function tryPseudonymize(
   prisma: PrismaClient,
@@ -150,18 +153,25 @@ async function tryPseudonymize(
   state: RunState,
 ): Promise<PseudonymizationStep> {
   if (!state.pseudonymizationEnabled) return { outcome: SKIPPED };
+
+  const report = await prisma.report.findUnique({
+    where: { id: reportId },
+    select: REPORT_CONTENT_WITH_PSEUDONYMIZED_SELECT,
+  });
+  if (!report) return { outcome: SKIPPED };
+
+  const stored = assemblePseudonymizedContent(report);
+  if (stored) {
+    state.reused += 1;
+    return { outcome: PSEUDONYMIZATION_OUTCOMES.DONE, content: stored };
+  }
+
   if (isOutage(state)) return { outcome: SKIPPED };
   if (state.pseudonymized >= MAX_PSEUDONYMIZATIONS_PER_RUN) {
     return { outcome: SKIPPED };
   }
 
-  const content = await prisma.report.findUnique({
-    where: { id: reportId },
-    select: REPORT_CONTENT_SELECT,
-  });
-  if (!content) return { outcome: SKIPPED };
-
-  const attempt = await pseudonymizeReportContent(reportId, content);
+  const attempt = await pseudonymizeMissingPieces(prisma, reportId, report);
 
   if (attempt.outcome === PSEUDONYMIZATION_OUTCOMES.OUTAGE) {
     state.apiFailures += 1;
@@ -226,6 +236,7 @@ export async function processReportDeletion(
     pseudonymizationEnabled,
     apiFailures: 0,
     pseudonymized: 0,
+    reused: 0,
     erased: 0,
   };
   // Drapeau éteint, aucun appel réseau par dossier : le séquentiel d'avant suffit.
@@ -295,8 +306,9 @@ export async function processReportDeletion(
           },
         );
         const pseudonymized = step.content ?? null;
+        // La copie pseudonymisée est déjà stockée : `Report` ne garde rien.
         const content =
-          pseudonymized ??
+          (pseudonymized && clearedContent(pseudonymized)) ??
           (pseudonymizationEnabled
             ? null
             : fakeContent(
@@ -356,6 +368,9 @@ export async function processReportDeletion(
               where: { id: answer.id },
               data: { content: answer.content },
             });
+          }
+          if (content && !pseudonymized) {
+            await discardPseudonymizedPieces(tx, report.id);
           }
 
           await tx.reportStatusHistory.create({
@@ -425,6 +440,11 @@ export async function processReportDeletion(
 
   await resumePendingPseudonymization(prisma, result, state, now);
 
+  if (state.reused > 0) {
+    logger.info("Texte déjà pseudonymisé repris sans appel", {
+      count: state.reused,
+    });
+  }
   result.awaitingPseudonymizationCount = await prisma.report.count({
     where: {
       status: ReportStatus.DELETED,
@@ -520,7 +540,7 @@ async function resumePendingPseudonymization(
         await writeContent(
           prisma,
           report.id,
-          step.content,
+          clearedContent(step.content),
           ReportPseudonymizationStatus.DONE,
         );
         result.pseudonymized.push({ id: report.id });
@@ -572,6 +592,10 @@ async function writeContent(
         where: { id: answer.id },
         data: { content: answer.content },
       });
+    }
+
+    if (status === ReportPseudonymizationStatus.FAKE) {
+      await discardPseudonymizedPieces(tx, reportId);
     }
   }, TRANSACTION_OPTIONS);
 }

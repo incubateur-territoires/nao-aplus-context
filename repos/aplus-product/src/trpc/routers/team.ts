@@ -169,6 +169,11 @@ export const teamRouter = createTRPCRouter({
           pendingUsers: { select: { id: true, email: true } },
           areas: true,
           organization: true,
+          // Affiché aux seuls admins : ne pas l'envoyer aux autres membres.
+          createdBy:
+            ctx.user.role === USER_ROLES.ADMIN
+              ? { select: { firstName: true, lastName: true } }
+              : false,
         },
       });
     }),
@@ -983,6 +988,19 @@ export const teamRouter = createTRPCRouter({
         }
       }
 
+      // Type historique : plus de nouvelle équipe sans un administrateur ou un superviseur.
+      if (
+        !isAdmin &&
+        !isSupervisor &&
+        teamType === TeamType.HISTORICAL_SOCIAL_WORKER
+      ) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message:
+            "Les travailleurs sociaux historiques ne peuvent pas créer d'équipe.",
+        });
+      }
+
       // Check for existing team with same name in organization
       const existingTeamByName = await prisma.team.findFirst({
         where: {
@@ -1011,6 +1029,7 @@ export const teamRouter = createTRPCRouter({
             // jamais de l'entrée client.
             role: organization.role,
             type: teamType,
+            createdBy: { connect: { id: ctx.userId } },
             organization: { connect: { id: input.organizationId } },
             areas: { connect: input.areaIds.map((id) => ({ id })) },
             ...(isAdmin || isSupervisor

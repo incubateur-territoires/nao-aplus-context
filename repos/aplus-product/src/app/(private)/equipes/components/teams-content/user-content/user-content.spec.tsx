@@ -3,6 +3,7 @@ import { UserContent } from "./user-content";
 import { createMockTeamCard } from "@/test/utils/global-mocks";
 import { MOCK_IDS, USER_ROLES } from "@/test/mocks";
 import { useQuery } from "@tanstack/react-query";
+import { TeamType } from "@/generated/prisma/enums";
 
 const mockPush = jest.fn();
 const mockUseSession = jest.fn();
@@ -17,6 +18,11 @@ jest.mock("@/trpc/client", () => ({
     team: {
       getMyTeams: {
         queryOptions: () => ({ queryKey: ["team", "getMyTeams"] }),
+      },
+      getManagerInheritedTeamType: {
+        queryOptions: () => ({
+          queryKey: ["team", "getManagerInheritedTeamType"],
+        }),
       },
     },
   }),
@@ -123,6 +129,38 @@ describe("UserContent", () => {
     (useQuery as jest.Mock).mockReturnValue({
       data: { items: mockTeams, totalPages: 1 },
     });
+
+    mockUseSession.mockReturnValue({
+      data: { user: { id: MOCK_IDS.USER_1, role: USER_ROLES.USER } },
+      isPending: false,
+    });
+
+    render(<UserContent />);
+
+    expect(screen.queryByText("Créer une équipe")).not.toBeInTheDocument();
+  });
+
+  it("should NOT show create team button when user manages historical social worker teams", () => {
+    const mockTeams = [
+      createMockTeamCard({
+        id: "team-1",
+        name: "Équipe Alpha",
+        managers: [{ id: MOCK_IDS.USER_1 }] as ReturnType<
+          typeof createMockTeamCard
+        >["managers"],
+      }),
+    ];
+
+    (useQuery as jest.Mock).mockImplementation((options) =>
+      options.queryKey.includes("getManagerInheritedTeamType")
+        ? {
+            data: {
+              type: TeamType.HISTORICAL_SOCIAL_WORKER,
+              hasDifferentTypes: false,
+            },
+          }
+        : { data: { items: mockTeams, totalPages: 1 } },
+    );
 
     mockUseSession.mockReturnValue({
       data: { user: { id: MOCK_IDS.USER_1, role: USER_ROLES.USER } },

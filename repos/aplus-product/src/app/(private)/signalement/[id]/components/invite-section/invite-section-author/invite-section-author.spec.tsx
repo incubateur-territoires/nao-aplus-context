@@ -52,6 +52,7 @@ const mockReport: inferRouterOutputs<AppRouter>["report"]["getReportById"] = {
     banExpires: null,
     twoFactorEnabled: false,
     notificationsViewedBefore: null,
+    taggingFeedbackHiddenAt: null,
     createdAt: new Date(),
     updatedAt: new Date(),
   },

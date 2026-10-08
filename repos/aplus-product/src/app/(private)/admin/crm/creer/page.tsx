@@ -1,26 +1,29 @@
 import { redirect } from "next/navigation";
+import Breadcrumb from "@codegouvfr/react-dsfr/Breadcrumb";
 import { HydrateClient } from "@/trpc/hydrate-client";
 import { StartDsfrOnHydration } from "@/dsfr-bootstrap";
 import { Container } from "@/app/component/container/container";
-import Breadcrumb from "@codegouvfr/react-dsfr/Breadcrumb";
 import { ROUTE } from "@/app/constant/route";
 import { getCurrentUserRole } from "@/utils/auth-server";
-import { trpc, prefetch } from "@/trpc/server";
 import { USER_ROLES } from "@/constants/user-roles";
-import { BannerForm } from "./components/banner-form/banner-form";
+import { trpc, prefetch } from "@/trpc/server";
+import { ContactForm } from "../components/contact-form/contact-form";
 
 export const metadata = {
-  title: "Administration",
+  title: "Ajouter un contact",
 };
 
-export default async function AdministrationPage() {
+export default async function CreateContactPage() {
   const role = await getCurrentUserRole();
 
   if (role !== USER_ROLES.ADMIN) {
     redirect(ROUTE.ALL_REPORTS);
   }
 
-  await prefetch(trpc.banner.getAdmin.queryOptions());
+  await Promise.all([
+    prefetch(trpc.area.getAreas.queryOptions()),
+    prefetch(trpc.organization.getOrganizations.queryOptions()),
+  ]);
 
   return (
     <HydrateClient>
@@ -28,14 +31,14 @@ export default async function AdministrationPage() {
       <div className="bg-blue-background min-h-screen">
         <Container>
           <Breadcrumb
-            currentPageLabel="Administration"
-            homeLinkProps={{
-              href: ROUTE.HOME,
-            }}
-            segments={[]}
+            currentPageLabel="Ajouter un contact"
+            homeLinkProps={{ href: ROUTE.HOME }}
+            segments={[
+              { label: "Contacts", linkProps: { href: ROUTE.CONTACTS } },
+            ]}
           />
-          <h1 className="my-6">Administration</h1>
-          <BannerForm />
+          <h1 className="my-6">Ajouter un contact</h1>
+          <ContactForm />
         </Container>
       </div>
     </HydrateClient>

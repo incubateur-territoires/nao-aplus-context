@@ -121,6 +121,7 @@ const mockColleagues: User[] = [
     banExpires: null,
     twoFactorEnabled: false,
     notificationsViewedBefore: null,
+    taggingFeedbackHiddenAt: null,
   },
   {
     id: "colleague-2",
@@ -148,6 +149,7 @@ const mockColleagues: User[] = [
     banExpires: null,
     twoFactorEnabled: false,
     notificationsViewedBefore: null,
+    taggingFeedbackHiddenAt: null,
   },
 ];
 
@@ -175,6 +177,7 @@ const mockReportAuthor: User = {
   banExpires: null,
   twoFactorEnabled: false,
   notificationsViewedBefore: null,
+  taggingFeedbackHiddenAt: null,
   createdAt: new Date(),
   updatedAt: new Date(),
 };

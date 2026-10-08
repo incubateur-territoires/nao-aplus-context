@@ -42,6 +42,7 @@ const mockStatus: ReportStatusHistoryType = {
     banExpires: null,
     twoFactorEnabled: false,
     notificationsViewedBefore: null,
+    taggingFeedbackHiddenAt: null,
   },
   reportId: "request-1",
 };

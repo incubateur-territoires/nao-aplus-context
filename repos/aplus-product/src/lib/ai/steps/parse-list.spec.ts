@@ -27,7 +27,15 @@ describe("parseLlmList", () => {
     ]);
   });
 
-  it.each(["AUCUN", "aucune", "Aucun.", "AUCUNES"])(
+  it.each([
+    "AUCUN",
+    "aucune",
+    "Aucun.",
+    "AUCUNES",
+    "[AUCUNE]",
+    "**AUCUNE**",
+    "« Aucun »",
+  ])(
     "renvoie une liste vide sur %s",
     (answer) => {
       expect(parseLlmList(answer)).toEqual([]);

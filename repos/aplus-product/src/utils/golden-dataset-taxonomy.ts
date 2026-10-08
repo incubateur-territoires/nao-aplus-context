@@ -354,6 +354,29 @@ export function projectAxis<Tags extends ClosedTagSet, A extends GoldenTagAxis>(
     : { kind: "projected", fineLabel, closedTag: entry[1] };
 }
 
+/**
+ * Tag fermé d'un libellé prédit, ou `null` hors liste. Partagé par la correction
+ * et l'étiquetage en production : le tag stocké est celui qui a été mesuré.
+ */
+export function closedTagOfLabel<
+  Tags extends ClosedTagSet,
+  A extends GoldenTagAxis,
+>(taxonomy: ClosedTaxonomy<Tags>, axis: A, label: string): Tags[A] | null {
+  const exit = closedTagsOf(taxonomy, axis).find(
+    (tag) =>
+      [OTHER_GOLDEN_TAG, UNDETERMINED_GOLDEN_TAG, NO_BLOCKAGE_GOLDEN_TAG].some(
+        (exitTag) => sameTag(tag, exitTag),
+      ) && sameTag(tag, label),
+  );
+  if (exit !== undefined) {
+    return exit;
+  }
+
+  const projection = projectAxis(taxonomy, axis, label);
+
+  return projection.kind === "projected" ? projection.closedTag : null;
+}
+
 /** La ligne stockée dans `GoldenDatasetGold`, telle que `overview` la renvoie. */
 export interface StoredClosedGolds extends ClosedGolds {
   readonly taxonomyVersion: number;

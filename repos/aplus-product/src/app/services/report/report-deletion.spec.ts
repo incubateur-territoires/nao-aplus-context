@@ -2,11 +2,9 @@ import { ReportStatus } from "@/generated/prisma/enums";
 import {
   API_FAILURE_THRESHOLD,
   PSEUDONYMIZATION_GRACE_DAYS,
-} from "@/utils/pseudonymization-policy";
-import {
   REDACTION_CONCURRENCY,
-  processReportDeletion,
-} from "./report-deletion";
+} from "@/utils/pseudonymization-policy";
+import { processReportDeletion } from "./report-deletion";
 import { pseudonymizeReportContent } from "./report-pseudonymization";
 import { mapWithConcurrency } from "@/utils/concurrency";
 
@@ -71,6 +69,17 @@ function createMockPrisma() {
       deleteMany: jest.fn().mockResolvedValue({ count: 1 }),
     },
     notificationView: {
+      deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
+    },
+    pseudonymizedReport: {
+      createMany: jest.fn().mockResolvedValue({ count: 1 }),
+      deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
+    },
+    pseudonymizedAnswer: {
+      createMany: jest.fn().mockResolvedValue({ count: 1 }),
+      deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
+    },
+    reportPseudonymizationRefusal: {
       deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
     },
     $transaction: jest.fn(),
@@ -420,17 +429,27 @@ describe("report-deletion service — pseudonymisation du texte", () => {
     delete process.env.REPORT_PSEUDONYMIZATION_ENABLED;
   });
 
-  it("conserve le texte caviardé et marque le signalement comme pseudonymisé", async () => {
+  it("stocke la copie pseudonymisée et vide le texte du signalement", async () => {
     mockPasses([createClosedReport({ id: "r-done" })], []);
 
     const result = await processReportDeletion(mockPrisma as never);
 
     expect(result.pseudonymized).toContainEqual({ id: "r-done" });
+    expect(mockPrisma.pseudonymizedReport.createMany).toHaveBeenCalledWith({
+      data: [
+        {
+          reportId: "r-done",
+          subject: "Sujet [NOM_1]",
+          description: "Description [NOM_1]",
+        },
+      ],
+      skipDuplicates: true,
+    });
     expect(mockPrisma.report.updateMany).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({
-          subject: "Sujet [NOM_1]",
-          description: "Description [NOM_1]",
+          subject: "",
+          description: "",
           pseudonymizationStatus: "DONE",
         }),
       }),
@@ -570,7 +589,7 @@ describe("report-deletion service — pseudonymisation du texte", () => {
         where: { id: "r-pending", status: ReportStatus.DELETED },
         data: expect.objectContaining({
           pseudonymizationStatus: "DONE",
-          subject: "Sujet [NOM_1]",
+          subject: "",
           firstName: "Anonymisé",
           lastName: "Anonymisé",
           maritalName: null,
@@ -736,5 +755,164 @@ describe("report-deletion service — pseudonymisation du texte", () => {
       1,
       expect.any(Function),
     );
+  });
+
+  describe("texte déjà pseudonymisé par le cron de pseudonymisation", () => {
+    const STORED = {
+      subject: "Sujet réel",
+      description: "Description réelle",
+      firstName: "Réel",
+      lastName: "Citoyen",
+      maritalName: null,
+      birthDate: "01/01/1980",
+      author: null,
+      pseudonymized: { subject: "Sujet [NOM_1]", description: "Desc [NOM_1]" },
+      answers: [
+        {
+          id: "answer-1",
+          content: "Réponse réelle",
+          author: null,
+          pseudonymized: { content: "Réponse [NOM_2]" },
+        },
+      ],
+    };
+
+    it("reprend le texte stocké sans appeler le pipeline", async () => {
+      mockPrisma.report.findUnique.mockResolvedValue(STORED);
+      mockPasses([createClosedReport({ id: "r-stored" })], []);
+
+      const result = await processReportDeletion(mockPrisma as never);
+
+      expect(pseudonymizeReportContent).not.toHaveBeenCalled();
+      expect(result.pseudonymized).toContainEqual({ id: "r-stored" });
+      expect(mockPrisma.report.updateMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            subject: "",
+            description: "",
+            pseudonymizationStatus: "DONE",
+            firstName: "Anonymisé",
+          }),
+        }),
+      );
+      expect(mockPrisma.answer.update).toHaveBeenCalledWith({
+        where: { id: "answer-1" },
+        data: { content: "" },
+      });
+      expect(mockPrisma.pseudonymizedReport.deleteMany).not.toHaveBeenCalled();
+    });
+
+    it("reprend le texte stocké même pendant une panne du pipeline", async () => {
+      givenOutcome("OUTAGE");
+      mockPrisma.report.findUnique.mockImplementation(
+        async (args: { where: { id: string } }) =>
+          args.where.id === "r-stored"
+            ? STORED
+            : { ...STORED, pseudonymized: null },
+      );
+      mockPasses(
+        [
+          ...Array.from({ length: API_FAILURE_THRESHOLD }, (_, index) =>
+            createClosedReport({ id: `r-outage-${index}` }),
+          ),
+          createClosedReport({ id: "r-stored" }),
+        ],
+        [],
+      );
+      (mapWithConcurrency as jest.Mock).mockImplementationOnce(
+        async (
+          items: unknown[],
+          _concurrency: number,
+          run: (item: unknown) => Promise<void>,
+        ) => {
+          for (const item of items) await run(item);
+        },
+      );
+
+      const result = await processReportDeletion(mockPrisma as never);
+
+      expect(result.pseudonymizationOutage).toBe(true);
+      expect(pseudonymizeReportContent).toHaveBeenCalledTimes(
+        API_FAILURE_THRESHOLD,
+      );
+      expect(result.pseudonymized).toEqual([{ id: "r-stored" }]);
+    });
+
+    it("ne caviarde que les réponses arrivées après le texte stocké", async () => {
+      mockPrisma.report.findUnique.mockResolvedValue({
+        ...STORED,
+        answers: [
+          ...STORED.answers,
+          {
+            id: "answer-2",
+            content: "Nouvelle",
+            author: null,
+            pseudonymized: null,
+          },
+        ],
+      });
+      givenOutcome("DONE", {
+        subject: "",
+        description: "",
+        answers: [{ id: "answer-2", content: "Nouvelle [NOM_3]" }],
+      });
+      mockPasses([createClosedReport({ id: "r-partial" })], []);
+
+      const result = await processReportDeletion(mockPrisma as never);
+
+      const scope = (pseudonymizeReportContent as jest.Mock).mock.calls[0][2];
+      expect(scope.includeReport).toBe(false);
+      expect([...scope.answerIds]).toEqual(["answer-2"]);
+      expect(mockPrisma.pseudonymizedAnswer.createMany).toHaveBeenCalledWith({
+        data: [{ answerId: "answer-2", content: "Nouvelle [NOM_3]" }],
+        skipDuplicates: true,
+      });
+      expect(result.pseudonymized).toContainEqual({ id: "r-partial" });
+      expect(mockPrisma.answer.update).toHaveBeenCalledWith({
+        where: { id: "answer-2" },
+        data: { content: "" },
+      });
+      expect(mockPrisma.report.updateMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ subject: "" }),
+        }),
+      );
+    });
+
+    it("n'utilise pas le texte stocké quand le pipeline est désactivé, et le supprime", async () => {
+      delete process.env.REPORT_PSEUDONYMIZATION_ENABLED;
+      mockPrisma.report.findUnique.mockResolvedValue(STORED);
+      mockPasses([createClosedReport({ id: "r-off" })], []);
+
+      await processReportDeletion(mockPrisma as never);
+
+      const data = mockPrisma.report.updateMany.mock.calls[0][0].data;
+      expect(data.pseudonymizationStatus).toBe("FAKE");
+      expect(mockPrisma.pseudonymizedReport.deleteMany).toHaveBeenCalledWith({
+        where: { reportId: "r-off" },
+      });
+      expect(mockPrisma.pseudonymizedAnswer.deleteMany).toHaveBeenCalledWith({
+        where: { answer: { reportId: "r-off" } },
+      });
+    });
+
+    it("supprime le texte stocké quand on renonce passé le délai de grâce", async () => {
+      givenOutcome("REFUSED");
+      mockPasses(
+        [],
+        [
+          createPendingReport({
+            id: "r-old",
+            maskedAt: daysAgo(PSEUDONYMIZATION_GRACE_DAYS + 1),
+          }),
+        ],
+      );
+
+      await processReportDeletion(mockPrisma as never);
+
+      expect(mockPrisma.pseudonymizedReport.deleteMany).toHaveBeenCalledWith({
+        where: { reportId: "r-old" },
+      });
+    });
   });
 });
