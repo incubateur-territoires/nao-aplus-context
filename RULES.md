@@ -76,9 +76,14 @@ Certains fichiers dépassent la limite de lecture : cherche avec `grep` plutôt 
 ## Modèle de données (PostgreSQL, généré par Prisma)
 
 > Conventions Prisma : noms de tables en **PascalCase entre guillemets** (`"Report"`), il faut
-> donc citer les identifiants en SQL (`SELECT * FROM public."Report"`). Les colonnes sont en
-> camelCase guillemeté (`"createdAt"`). Six tables de jointure M-N sont lisibles (voir plus bas) ;
-> les autres `_X` et `_prisma_migrations` sont exclues. Les clés sont des `text` (cuid).
+> donc citer les identifiants en SQL (`SELECT "id" FROM public."Report"`). Les colonnes sont en
+> camelCase guillemeté (`"createdAt"`, `o."shortName"`) : sans guillemets, PostgreSQL les passe
+> en minuscules et la colonne « n'existe pas ». Six tables de jointure M-N sont lisibles (voir
+> plus bas) ; les autres `_X` et `_prisma_migrations` sont exclues. Les clés sont des `text` (cuid).
+>
+> Seules les tables présentes dans `databases/` existent pour toi : pas de schéma `analytics`,
+> pas de `GoldenDatasetItem`. Les enums (`"status"`, `"role"`…) se castent en `::text` avant
+> `string_agg` ou une comparaison avec du texte.
 
 ### Ce que tu peux réellement lire
 
