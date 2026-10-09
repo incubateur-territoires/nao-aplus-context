@@ -68,6 +68,8 @@ Certains fichiers dépassent la limite de lecture : cherche avec `grep` plutôt 
   `tous-les-signalements`, `administration`, `mon-profil`.
 - Ce que fait le serveur : un router tRPC par entité dans `src/trpc/routers/` (`user.ts`,
   `team.ts`, `report.ts`, `answer.ts`, `supervisor.ts`, `organization.ts`, `area.ts`, `stats.ts`).
+  `report.ts`, `user.ts` et `team.ts` font 45 à 75 Ko : **ne les lis jamais en entier**, la
+  lecture est tronquée. `grep` le nom de la procédure dans le fichier avec `context_lines: 40`.
 - Cycle de vie d'un utilisateur (inactivité, désactivation, suppression, retrait d'équipe) :
   `src/app/services/user/`. Purge des signalements : `src/app/services/report/report-deletion.ts`.
 - Un champ précis : `grep -rn "nomDuChamp" src --exclude=*.spec.*` (les tests `*.spec.*` sont du bruit).
@@ -83,7 +85,8 @@ Certains fichiers dépassent la limite de lecture : cherche avec `grep` plutôt 
 >
 > Seules les tables présentes dans `databases/` existent pour toi : pas de schéma `analytics`,
 > pas de `GoldenDatasetItem`. Les enums (`"status"`, `"role"`…) se castent en `::text` avant
-> `string_agg` ou une comparaison avec du texte.
+> `string_agg` ou une comparaison avec du texte. Les relations du schéma Prisma (`User.teams`,
+> `Team.users`…) ne sont pas des colonnes : passe par les tables de jointure listées plus bas.
 
 ### Ce que tu peux réellement lire
 
