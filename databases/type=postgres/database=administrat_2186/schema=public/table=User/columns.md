@@ -17,12 +17,11 @@ _No description available._
 |----------|-------|
 | **Row Count** | 16,312 |
 
-## Columns (22)
+## Columns (21)
 
 - id (string NOT NULL)
 - createdAt (timestamp(3) NOT NULL)
 - updatedAt (timestamp(3) NOT NULL)
-- email (string NOT NULL)
 - firstName (string NOT NULL)
 - lastName (string NOT NULL)
 - name (string NOT NULL)

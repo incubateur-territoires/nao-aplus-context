@@ -53,6 +53,7 @@ databases:
       - "public.Report.birthDate"
       - "public.Report.phone"
       - "public.Answer.content"
+      - "public.User.email"
       - "public.User.phone"
       - "public.User.internalSupportComment"
       - "public.User.banReason"
