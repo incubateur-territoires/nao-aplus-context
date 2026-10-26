@@ -18,7 +18,7 @@ export function PersonalInformationForm() {
         <Controller
           control={formMethods.control}
           name="firstName"
-          render={({ field }) => (
+          render={({ field: { ref, ...field } }) => (
             <Input
               state={
                 formMethods.formState.errors.firstName ? "error" : "default"
@@ -29,6 +29,7 @@ export function PersonalInformationForm() {
               label="Prénom"
               {...field}
               nativeInputProps={{
+                ref,
                 "aria-required": true,
                 value: field.value ?? "",
                 onChange: (e) => {
@@ -42,7 +43,7 @@ export function PersonalInformationForm() {
         <Controller
           control={formMethods.control}
           name="lastName"
-          render={({ field }) => (
+          render={({ field: { ref, ...field } }) => (
             <Input
               state={
                 formMethods.formState.errors.lastName ? "error" : "default"
@@ -53,6 +54,7 @@ export function PersonalInformationForm() {
               label="Nom"
               {...field}
               nativeInputProps={{
+                ref,
                 "aria-required": true,
                 value: field.value ?? "",
                 onChange: (e) => {
@@ -66,7 +68,7 @@ export function PersonalInformationForm() {
         <Controller
           control={formMethods.control}
           name="profession"
-          render={({ field }) => (
+          render={({ field: { ref, ...field } }) => (
             <Input
               state={
                 formMethods.formState.errors.profession ? "error" : "default"
@@ -77,6 +79,7 @@ export function PersonalInformationForm() {
               label="Profession (optionnel)"
               {...field}
               nativeInputProps={{
+                ref,
                 value: field.value ?? "",
                 onChange: (e) => {
                   field.onChange(e.target.value);
@@ -89,13 +92,14 @@ export function PersonalInformationForm() {
         <Controller
           control={formMethods.control}
           name="phone"
-          render={({ field }) => (
+          render={({ field: { ref, ...field } }) => (
             <Input
               state={formMethods.formState.errors.phone ? "error" : "default"}
               stateRelatedMessage={formMethods.formState.errors.phone?.message}
               label="Numéro de téléphone (optionnel)"
               {...field}
               nativeInputProps={{
+                ref,
                 type: "tel",
                 value: field.value ?? "",
                 onChange: (e) => {

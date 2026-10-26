@@ -1,8 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import { MessageBubble } from "./message-bubble";
 import type { AnswerType } from "../types";
-import { OrganizationRole } from "@/generated/prisma/enums";
-import { createMockReportTeam, USER_ROLES } from "@/test/mocks";
+import { USER_ROLES } from "@/test/mocks";
 
 const mockAnswer: AnswerType = {
   id: "answer-1",
@@ -45,35 +44,7 @@ const mockAnswer: AnswerType = {
     teams: [],
   },
   report: {
-    id: "request-1",
-    authorId: "author-1",
-    status: "PENDING_ASSIGNMENT" as const,
-    caf: null,
-    nir: null,
-    nif: null,
-    maritalName: null,
-    subject: "Test subject",
-    description: "Test description",
-    phone: null,
-    firstName: "Test",
-    lastName: "User",
-    birthDate: "1990-01-01",
-    citizenPermissionConfirmed: true,
-    areaId: "area-1",
-    applicantTeamId: "group-1",
-    organizationId: null,
-    createdAt: new Date("2024-01-01T10:00:00Z"),
-    updatedAt: new Date("2024-01-01T10:00:00Z"),
-    lastAnswerAt: null,
-    overdueAt: null,
-    pseudonymizationStatus: null,
-    userId: null,
-    applicantTeam: createMockReportTeam({
-      id: "group-1",
-      name: "Test Group",
-      organizationId: "structure-1",
-      role: OrganizationRole.OPERATOR,
-    }),
+    applicantTeam: { id: "group-1" },
     requestedTeams: [],
   },
   files: [],

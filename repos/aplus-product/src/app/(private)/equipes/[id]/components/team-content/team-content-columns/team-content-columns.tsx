@@ -1,6 +1,5 @@
 import type { ColumnDef } from "@tanstack/react-table";
 import Button from "@codegouvfr/react-dsfr/Button";
-import { formatDate } from "@/app/component/reports-table/reports-table-utils/reports-table.utils";
 import { USER_ROLES } from "@/constants/user-roles";
 import Badge from "@codegouvfr/react-dsfr/Badge";
 import { TeamRole } from "@/types/team";
@@ -25,7 +24,6 @@ export interface TeamMemberRow {
   profession?: string | null;
   activityLabels: string[];
   activityMetrics?: ActivityMetrics;
-  lastActivity: Date | null;
   isPending: boolean;
   isInactive: boolean;
 }
@@ -186,30 +184,6 @@ export function getTeamMembersColumns(
         );
       },
       enableSorting: false,
-    },
-    {
-      id: "last-activity",
-      header: "Dernière activité",
-      accessorFn: (row) => row.lastActivity,
-      meta: { sortType: "date" },
-      cell: ({ row }) => {
-        if (row.original.isPending) {
-          return (
-            <Badge severity="warning" noIcon className="whitespace-nowrap">
-              CGU non acceptées
-            </Badge>
-          );
-        }
-
-        return (
-          <span className="text-xs">
-            {row.original.lastActivity
-              ? formatDate(row.original.lastActivity)
-              : "-"}
-          </span>
-        );
-      },
-      enableSorting: true,
     },
   );
 

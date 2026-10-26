@@ -142,6 +142,86 @@ describe("maskReportForRole", () => {
   });
 });
 
+describe("texte caviardé", () => {
+  const PSEUDONYMIZED_REPORT = {
+    ...SAMPLE_REPORT,
+    pseudonymized: {
+      subject: "Problème de [NOM_1]",
+      description: "[NOM_1] attend sa réponse",
+    },
+  };
+  const PSEUDONYMIZED_ANSWER = {
+    ...SAMPLE_ANSWER,
+    pseudonymized: { content: "Réponse à [NOM_1]" },
+  };
+
+  it("montre le sujet et la description caviardés à un admin", () => {
+    const result = maskReportForRole(PSEUDONYMIZED_REPORT, USER_ROLES.ADMIN);
+    expect(result.subject).toBe("Problème de [NOM_1]");
+    expect(result.description).toBe("[NOM_1] attend sa réponse");
+    expect(result.firstName).toBe("Prénom (4 caractères)");
+    expect(result.nir).toBe("NIR (13 caractères)");
+  });
+
+  it("montre le texte caviardé lors d'une impersonation", () => {
+    const role = getMaskingRole(USER_ROLES.USER, "admin-id");
+    expect(maskReportForRole(PSEUDONYMIZED_REPORT, role).subject).toBe(
+      "Problème de [NOM_1]",
+    );
+    expect(maskAnswerForRole(PSEUDONYMIZED_ANSWER, role).content).toBe(
+      "Réponse à [NOM_1]",
+    );
+  });
+
+  it("garde le masque pour un admin tant que le caviardage manque", () => {
+    const result = maskReportForRole(
+      { ...SAMPLE_REPORT, pseudonymized: null },
+      USER_ROLES.ADMIN,
+    );
+    expect(result.subject).toBe("Sujet (15 caractères)");
+    expect(
+      maskAnswerForRole(
+        { ...SAMPLE_ANSWER, pseudonymized: null },
+        USER_ROLES.ADMIN,
+      ).content,
+    ).toBe("contenu (17 caractères)");
+  });
+
+  it("garde le masque pour un superviseur", () => {
+    const result = maskReportForRole(
+      PSEUDONYMIZED_REPORT,
+      USER_ROLES.SUPERVISOR,
+    );
+    expect(result.subject).toBe("Sujet (15 caractères)");
+    expect(
+      maskAnswerForRole(PSEUDONYMIZED_ANSWER, USER_ROLES.SUPERVISOR).content,
+    ).toBe("contenu (17 caractères)");
+  });
+
+  it("montre le texte réel à un utilisateur", () => {
+    const result = maskReportForRole(PSEUDONYMIZED_REPORT, USER_ROLES.USER);
+    expect(result.subject).toBe("Problème urgent");
+    expect(
+      maskAnswerForRole(PSEUDONYMIZED_ANSWER, USER_ROLES.USER).content,
+    ).toBe("Réponse détaillée");
+  });
+
+  it("ne renvoie jamais la copie caviardée au client", () => {
+    for (const role of [
+      USER_ROLES.USER,
+      USER_ROLES.SUPERVISOR,
+      USER_ROLES.ADMIN,
+    ]) {
+      expect(maskReportForRole(PSEUDONYMIZED_REPORT, role)).not.toHaveProperty(
+        "pseudonymized",
+      );
+      expect(maskAnswerForRole(PSEUDONYMIZED_ANSWER, role)).not.toHaveProperty(
+        "pseudonymized",
+      );
+    }
+  });
+});
+
 describe("maskReportsForRole", () => {
   it("masque tous les rapports pour un admin", () => {
     const reports = [SAMPLE_REPORT, { ...SAMPLE_REPORT, id: "report-2" }];

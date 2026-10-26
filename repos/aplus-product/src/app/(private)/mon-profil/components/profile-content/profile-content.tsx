@@ -7,7 +7,6 @@ import { useForm, FormProvider } from "react-hook-form";
 import { useRef, useState } from "react";
 import Button from "@codegouvfr/react-dsfr/Button";
 import { Alert } from "@codegouvfr/react-dsfr/Alert";
-import { scrollToFirstError } from "@/app/component/request-form/utils/scroll";
 import { EmailSection } from "./email-section/email-section";
 import { PersonalInformationForm } from "./personal-information-form/personal-information-form";
 import { NotificationsSection } from "./notifications-section/notifications-section";
@@ -103,7 +102,7 @@ export function ProfileContent() {
   return (
     <div className="bg-white p-20 mb-8">
       <FormProvider {...formMethods}>
-        <form onSubmit={formMethods.handleSubmit(onSubmit, scrollToFirstError)}>
+        <form onSubmit={formMethods.handleSubmit(onSubmit)}>
           <div className="flex flex-col gap-16">
             {showSuccessAlert && (
               <Alert

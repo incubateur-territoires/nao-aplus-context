@@ -1,9 +1,4 @@
-import {
-  getActivityLabel,
-  getActivityLabels,
-  getLastActivityDate,
-} from "./team-content.utils";
-import { MOCK_DATES } from "@/test/mocks";
+import { getActivityLabel, getActivityLabels } from "./team-content.utils";
 
 describe("team-content.utils", () => {
   describe("getActivityLabel", () => {
@@ -25,56 +20,6 @@ describe("team-content.utils", () => {
     it("handles large numbers correctly", () => {
       const result = getActivityLabel(100);
       expect(result).toBe("100 signalements");
-    });
-  });
-
-  describe("getLastActivityDate", () => {
-    it("returns null when dates array is empty", () => {
-      const result = getLastActivityDate([]);
-      expect(result).toBeNull();
-    });
-
-    it("returns the date when there is a single date", () => {
-      const date = MOCK_DATES.JAN_1_2024;
-      const result = getLastActivityDate([date]);
-      expect(result).toEqual(date);
-    });
-
-    it("returns the most recent date when multiple dates are provided", () => {
-      const dates = [
-        MOCK_DATES.JAN_1_2024,
-        MOCK_DATES.JAN_3_2024,
-        MOCK_DATES.JAN_2_2024,
-      ];
-      const result = getLastActivityDate(dates);
-      expect(result).toEqual(MOCK_DATES.JAN_3_2024);
-    });
-
-    it("handles dates in chronological order", () => {
-      const dates = [
-        MOCK_DATES.JAN_1_2024,
-        MOCK_DATES.JAN_2_2024,
-        MOCK_DATES.JAN_3_2024,
-      ];
-      const result = getLastActivityDate(dates);
-      expect(result).toEqual(MOCK_DATES.JAN_3_2024);
-    });
-
-    it("handles dates in reverse chronological order", () => {
-      const dates = [
-        MOCK_DATES.JAN_3_2024,
-        MOCK_DATES.JAN_2_2024,
-        MOCK_DATES.JAN_1_2024,
-      ];
-      const result = getLastActivityDate(dates);
-      expect(result).toEqual(MOCK_DATES.JAN_3_2024);
-    });
-
-    it("handles dates with same timestamp", () => {
-      const date = MOCK_DATES.JAN_1_2024;
-      const dates = [date, date, date];
-      const result = getLastActivityDate(dates);
-      expect(result).toEqual(date);
     });
   });
 

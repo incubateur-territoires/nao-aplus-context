@@ -178,8 +178,17 @@ export interface UserAdminUpdatedMetadata {
   fieldsUpdated: string[];
 }
 
+// Désactivation faite par le système plutôt que par un admin (l'acteur est null).
+export const DEACTIVATION_TRIGGERS = {
+  INACTIVITY_CRON: "inactivity_cron",
+} as const;
+
+export type DeactivationTrigger =
+  (typeof DEACTIVATION_TRIGGERS)[keyof typeof DEACTIVATION_TRIGGERS];
+
 export interface UserDeactivatedMetadata {
   targetUserId: string;
+  trigger?: DeactivationTrigger;
 }
 
 export interface UserReactivatedMetadata {

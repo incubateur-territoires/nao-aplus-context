@@ -146,7 +146,10 @@ describe("processReportPseudonymization", () => {
   });
 
   it("consigne un refus pour ne retenter le dossier qu'après le délai", async () => {
-    pseudonymize.mockResolvedValue({ outcome: "REFUSED" });
+    pseudonymize.mockResolvedValue({
+      outcome: "REFUSED",
+      refusal: { kind: "GUARD", violationCounts: { NAME: 2 } },
+    });
     const prisma = createMockPrisma({
       reports: [candidate("r1")],
       answers: [],
@@ -156,7 +159,15 @@ describe("processReportPseudonymization", () => {
 
     expect(result.refused).toBe(1);
     expect(prisma.reportPseudonymizationRefusal.upsert).toHaveBeenCalledWith(
-      expect.objectContaining({ where: { reportId: "r1" } }),
+      expect.objectContaining({
+        where: { reportId: "r1" },
+        update: {
+          refusedAt: expect.any(Date),
+          kind: "GUARD",
+          violationCounts: { NAME: 2 },
+          providerStatus: null,
+        },
+      }),
     );
   });
 

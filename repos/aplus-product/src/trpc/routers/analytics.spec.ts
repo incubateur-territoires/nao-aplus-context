@@ -344,6 +344,33 @@ describe("analyticsRouter.getUserActivitySummary", () => {
     expect(result.lastReactivation).toBeNull();
   });
 
+  it("names the system as the actor of an inactivity deactivation", async () => {
+    const deactivation = {
+      occurredAt: new Date("2026-07-04T02:00:00.000Z"),
+      createdAt: new Date("2026-07-04T02:00:05.000Z"),
+      userId: null,
+      metadata: { targetUserId: "user-1", trigger: "inactivity_cron" },
+    };
+
+    (prisma.session.findFirst as jest.Mock).mockResolvedValue(null);
+    (prisma.user.findUnique as jest.Mock).mockResolvedValue(null);
+    (prisma.analyticsEvent.findFirst as jest.Mock).mockImplementation(
+      ({ where }) =>
+        Promise.resolve(
+          where.eventName === "user_deactivated" ? deactivation : null,
+        ),
+    );
+    (prisma.report.count as jest.Mock).mockResolvedValue(0);
+
+    const caller = createAdminCaller();
+    const result = await caller.getUserActivitySummary({ userId: "user-1" });
+
+    expect(result.lastDeactivation).toEqual({
+      at: deactivation.occurredAt,
+      actorName: "le système (tâche planifiée)",
+    });
+  });
+
   it("falls back to the auth_sign_in event when no session exists", async () => {
     const signIn = {
       occurredAt: new Date("2026-07-02T13:00:00.000Z"),

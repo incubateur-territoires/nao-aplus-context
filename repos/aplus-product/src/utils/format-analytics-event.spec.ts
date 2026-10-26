@@ -31,6 +31,19 @@ describe("formatAnalyticsEventDescription", () => {
     expect(result).toBe("Alice Admin a désactivé Bob User");
   });
 
+  it("describes an inactivity deactivation as done by the system", () => {
+    const result = formatAnalyticsEventDescription({
+      eventName: "user_deactivated",
+      metadata: { targetUserId: "user-2", trigger: "inactivity_cron" },
+      actorName: null,
+      targetName: "Bob User",
+    });
+
+    expect(result).toBe(
+      "Compte de Bob User désactivé par le système (tâche planifiée) après 6 mois d'inactivité",
+    );
+  });
+
   it("falls back to targetEmail when target name is unknown", () => {
     const result = formatAnalyticsEventDescription({
       eventName: "auth_impersonate_user",

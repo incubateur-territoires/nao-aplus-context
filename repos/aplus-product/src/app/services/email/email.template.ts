@@ -67,7 +67,13 @@ export const EMAIL_TEMPLATES = {
   DIGEST: {
     id: 46,
     subject: "[A+] Récapitulatif des notifications",
-    vars: ["userFirstName", "reportsText", "answersText", "statusText"],
+    vars: [
+      "userFirstName",
+      "linkUrl",
+      "reportsText",
+      "answersText",
+      "statusText",
+    ],
   },
   ACCOUNT_DELETED: {
     id: 44,

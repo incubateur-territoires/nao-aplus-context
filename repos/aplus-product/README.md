@@ -23,13 +23,13 @@ Opéré par l'[Agence Nationale de la Cohésion des Territoires (ANCT)](https://
 | Email             | Brevo                                         |
 | Monitoring        | Sentry (instance ANCT)                        |
 | Hébergement       | Scalingo (France)                             |
-| Runtime           | Node.js 22.12.0 / Bun                         |
+| Runtime           | Node.js 22 / Bun                              |
 
 ---
 
 ## Installation
 
-**Prérequis** : Node.js 22.12.0, Bun, PostgreSQL 14+
+**Prérequis** : Node.js 22 (dernière mineure), Bun, PostgreSQL 14+
 
 ```bash
 # Cloner et installer

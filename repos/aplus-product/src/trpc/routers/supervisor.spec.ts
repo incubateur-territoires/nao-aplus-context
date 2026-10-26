@@ -3,7 +3,6 @@ import { supervisorRouter } from "./supervisor";
 import prisma from "@/lib/prisma";
 import { createMockUser, MOCK_IDS, USER_ROLES } from "@/test/mocks";
 import { sendTemplatedEmail } from "@/app/services/email/email.service";
-import { createVerificationToken } from "@/utils/verification-token";
 
 jest.mock("@/lib/auth", () => ({
   auth: {
@@ -38,10 +37,6 @@ jest.mock("@/lib/prisma", () => {
 
 jest.mock("@/app/services/email/email.service", () => ({
   sendTemplatedEmail: jest.fn(),
-}));
-
-jest.mock("@/utils/verification-token", () => ({
-  createVerificationToken: jest.fn(),
 }));
 
 const createCaller = createCallerFactory(supervisorRouter);
@@ -288,7 +283,6 @@ describe("supervisorRouter", () => {
       (prisma.pendingSupervisor.findUnique as jest.Mock).mockResolvedValue(
         null,
       );
-      (createVerificationToken as jest.Mock).mockResolvedValue("token-xyz");
       (prisma.pendingUser.upsert as jest.Mock).mockResolvedValue({
         email: "new@example.com",
         verificationToken: "token-xyz",
@@ -308,6 +302,13 @@ describe("supervisorRouter", () => {
       });
 
       expect(result).toEqual({ pending: true, email: "new@example.com" });
+      expect(prisma.pendingUser.upsert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          create: expect.objectContaining({
+            verificationToken: expect.stringMatching(/^[A-Za-z0-9_-]{43}$/),
+          }),
+        }),
+      );
       expect(prisma.pendingSupervisor.create).toHaveBeenCalledWith({
         data: {
           email: "new@example.com",
@@ -328,7 +329,6 @@ describe("supervisorRouter", () => {
       (prisma.pendingSupervisor.findUnique as jest.Mock).mockResolvedValue(
         null,
       );
-      (createVerificationToken as jest.Mock).mockResolvedValue("token-xyz");
       (prisma.pendingUser.upsert as jest.Mock).mockResolvedValue({
         email: "new@example.com",
         verificationToken: "token-xyz",

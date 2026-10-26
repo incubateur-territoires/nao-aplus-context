@@ -459,6 +459,29 @@ describe("CreateTeamContent", () => {
       });
     });
 
+    it("rejects a Matricule that is not made of digits", async () => {
+      const user = userEvent.setup();
+      const { mockCreateTeam } = setupMocks();
+
+      render(<CreateTeamContent />);
+
+      await user.selectOptions(
+        screen.getByLabelText(/Type d'organisation/),
+        MOCK_IDS.ORG_1,
+      );
+      await user.type(screen.getByLabelText(/Nom de l'équipe/), "Test Team");
+      await user.type(screen.getByLabelText(/Matricule/), "ab");
+      await selectArea(user, "Pas-de-Calais");
+      await user.click(screen.getByRole("button", { name: /Créer l'équipe/ }));
+
+      expect(
+        await screen.findByText(
+          "Le matricule ne doit contenir que des chiffres (6 au maximum).",
+        ),
+      ).toBeInTheDocument();
+      expect(mockCreateTeam).not.toHaveBeenCalled();
+    });
+
     it("allows submission when France Services organization is selected with registrationNumber", async () => {
       const { mockCreateTeam, mockInvalidateQueries } = setupMocks();
       mockCreateTeam.mockResolvedValue({});

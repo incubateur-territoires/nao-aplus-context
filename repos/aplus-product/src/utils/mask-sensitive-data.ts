@@ -31,6 +31,19 @@ function shouldMaskSensitiveData(role?: UserRole): boolean {
   return isAdmin(role) || isSupervisor(role);
 }
 
+/** Un admin lit le texte caviardé quand il existe, plutôt que sa seule longueur. */
+function showsPseudonymizedText(role?: UserRole): boolean {
+  return isAdmin(role);
+}
+
+interface WithPseudonymizedReport {
+  pseudonymized?: { subject: string; description: string } | null;
+}
+
+interface WithPseudonymizedAnswer {
+  pseudonymized?: { content: string } | null;
+}
+
 const REPORT_SENSITIVE_STRING_FIELDS = [
   "subject",
   "description",
@@ -43,71 +56,73 @@ const REPORT_SENSITIVE_STRING_FIELDS = [
   "phone",
 ] as const;
 
-export function maskReportForRole<T extends Record<string, unknown>>(
-  report: T,
-  userRole?: UserRole,
-): T {
-  if (!shouldMaskSensitiveData(userRole)) return report;
+export function maskReportForRole<
+  T extends Record<string, unknown> & WithPseudonymizedReport,
+>(report: T, userRole?: UserRole): Omit<T, "pseudonymized"> {
+  const { pseudonymized, ...rest } = report;
+  const masked: Record<string, unknown> = { ...rest };
 
-  const masked = { ...report };
+  if (shouldMaskSensitiveData(userRole)) {
+    for (const field of REPORT_SENSITIVE_STRING_FIELDS) {
+      if (field in masked && masked[field] !== null) {
+        masked[field] = maskValue(field, masked[field]);
+      }
+    }
 
-  for (const field of REPORT_SENSITIVE_STRING_FIELDS) {
-    if (field in masked && masked[field] !== null) {
-      (masked as Record<string, unknown>)[field] = maskValue(
-        field,
-        masked[field],
+    if (showsPseudonymizedText(userRole) && pseudonymized) {
+      masked.subject = pseudonymized.subject;
+      masked.description = pseudonymized.description;
+    }
+
+    if (Array.isArray(masked.files)) {
+      masked.files = maskFilesForRole(
+        masked.files as Record<string, unknown>[],
+        userRole,
       );
     }
   }
 
-  if ("files" in masked && Array.isArray(masked.files)) {
-    (masked as Record<string, unknown>).files = maskFilesForRole(
-      masked.files as Record<string, unknown>[],
-      userRole,
-    );
-  }
-
-  if ("answers" in masked && Array.isArray(masked.answers)) {
-    (masked as Record<string, unknown>).answers = maskAnswersForRole(
+  if (Array.isArray(masked.answers)) {
+    masked.answers = maskAnswersForRole(
       masked.answers as Record<string, unknown>[],
       userRole,
     );
   }
 
-  return masked;
+  return masked as Omit<T, "pseudonymized">;
 }
 
-export function maskReportsForRole<T extends Record<string, unknown>>(
-  reports: T[],
-  userRole?: UserRole,
-): T[] {
-  if (!shouldMaskSensitiveData(userRole)) return reports;
+export function maskReportsForRole<
+  T extends Record<string, unknown> & WithPseudonymizedReport,
+>(reports: T[], userRole?: UserRole): Omit<T, "pseudonymized">[] {
   return reports.map((report) => maskReportForRole(report, userRole));
 }
 
-export function maskAnswerForRole<T extends Record<string, unknown>>(
-  answer: T,
-  userRole?: UserRole,
-): T {
-  if (!shouldMaskSensitiveData(userRole)) return answer;
+export function maskAnswerForRole<
+  T extends Record<string, unknown> & WithPseudonymizedAnswer,
+>(answer: T, userRole?: UserRole): Omit<T, "pseudonymized"> {
+  const { pseudonymized, ...rest } = answer;
+  const masked: Record<string, unknown> = { ...rest };
 
-  const masked = { ...answer };
-
-  if ("content" in masked && masked.content !== null) {
-    (masked as Record<string, unknown>).content = maskValue(
-      "contenu",
-      masked.content,
-    );
+  if (!shouldMaskSensitiveData(userRole)) {
+    return masked as Omit<T, "pseudonymized">;
   }
 
-  if ("files" in masked && Array.isArray(masked.files)) {
-    (masked as Record<string, unknown>).files = maskFilesForRole(
+  if ("content" in masked && masked.content !== null) {
+    masked.content =
+      showsPseudonymizedText(userRole) && pseudonymized
+        ? pseudonymized.content
+        : maskValue("contenu", masked.content);
+  }
+
+  if (Array.isArray(masked.files)) {
+    masked.files = maskFilesForRole(
       masked.files as Record<string, unknown>[],
       userRole,
     );
   }
 
-  return masked;
+  return masked as Omit<T, "pseudonymized">;
 }
 
 function maskFileForRole<T extends Record<string, unknown>>(
@@ -136,10 +151,8 @@ function maskFilesForRole<T extends Record<string, unknown>>(
   return files.map((file) => maskFileForRole(file, userRole));
 }
 
-export function maskAnswersForRole<T extends Record<string, unknown>>(
-  answers: T[],
-  userRole?: UserRole,
-): T[] {
-  if (!shouldMaskSensitiveData(userRole)) return answers;
+export function maskAnswersForRole<
+  T extends Record<string, unknown> & WithPseudonymizedAnswer,
+>(answers: T[], userRole?: UserRole): Omit<T, "pseudonymized">[] {
   return answers.map((answer) => maskAnswerForRole(answer, userRole));
 }

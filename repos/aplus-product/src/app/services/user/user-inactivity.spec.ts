@@ -7,6 +7,12 @@ jest.mock("@/app/services/email/email.service", () => ({
   sendTemplatedEmail: (...args: unknown[]) => mockSendTemplatedEmail(...args),
 }));
 
+const mockTrackEventWithContext = jest.fn().mockResolvedValue(undefined);
+jest.mock("@/lib/analytics/server-analytics", () => ({
+  trackEventWithContext: (...args: unknown[]) =>
+    mockTrackEventWithContext(...args),
+}));
+
 jest.mock("@/utils/auth-server", () => ({
   revokeUserSessions: jest.fn().mockResolvedValue(undefined),
 }));
@@ -602,6 +608,24 @@ describe("user-inactivity service", () => {
       expect(mockPrisma.user.count).not.toHaveBeenCalled();
       expect(mockFindMostActiveTeamMember).not.toHaveBeenCalled();
       expect(mockPrisma.$transaction).toHaveBeenCalled();
+    });
+
+    it("records a system deactivation event for the user's activity feed", async () => {
+      const user = createDeactivatableUser({ managedTeams: [] });
+
+      mockPrisma.user.findMany.mockResolvedValueOnce([user]);
+      mockPrisma.user.findUniqueOrThrow.mockResolvedValue({
+        teams: [],
+        managedTeams: [],
+      });
+
+      await processInactiveUsers(mockPrisma as never);
+
+      expect(mockTrackEventWithContext).toHaveBeenCalledWith(
+        "user_deactivated",
+        null,
+        { targetUserId: user.id, trigger: "inactivity_cron" },
+      );
     });
 
     it("should send deactivation email after transaction", async () => {

@@ -1,5 +1,10 @@
 import { z } from "zod";
 import { TeamType } from "@/generated/prisma/enums";
+import {
+  isValidRegistrationNumber,
+  REGISTRATION_NUMBER_FORMAT_MESSAGE,
+  REGISTRATION_NUMBER_REQUIRED_MESSAGE,
+} from "@/utils/registration-number";
 
 interface OrganizationOption {
   id: string;
@@ -28,7 +33,16 @@ export function createTeamSchema(organizations?: OrganizationOption[]) {
         .nullable()
         .or(z.literal("")),
       description: z.string().optional().nullable(),
-      registrationNumber: z.string().optional().nullable(),
+      registrationNumber: z
+        .string()
+        .trim()
+        // Le vide relève de la règle « obligatoire » ci-dessous.
+        .refine(
+          (value) => value === "" || isValidRegistrationNumber(value),
+          REGISTRATION_NUMBER_FORMAT_MESSAGE,
+        )
+        .optional()
+        .nullable(),
       type: z.nativeEnum(TeamType).optional(),
     })
     .refine(
@@ -50,7 +64,7 @@ export function createTeamSchema(organizations?: OrganizationOption[]) {
         return true;
       },
       {
-        message: "Le matricule est obligatoire pour France Services.",
+        message: REGISTRATION_NUMBER_REQUIRED_MESSAGE,
         path: ["registrationNumber"],
       },
     );

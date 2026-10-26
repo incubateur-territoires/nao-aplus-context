@@ -3,7 +3,7 @@ import { adminProcedure, createTRPCRouter } from "../init";
 import prisma from "@/lib/prisma";
 import { TRPCError } from "@trpc/server";
 import { USER_ROLES } from "@/constants/user-roles";
-import { createVerificationToken } from "@/utils/verification-token";
+import { createInvitationToken } from "@/utils/verification-token";
 import { normalizeEmail } from "@/utils/normalize";
 import { sendTemplatedEmail } from "@/app/services/email/email.service";
 import { ROUTE } from "@/app/constant/route";
@@ -81,11 +81,7 @@ export const supervisorRouter = createTRPCRouter({
         });
       }
 
-      const verificationToken = await createVerificationToken({
-        email: normalizedEmail,
-        firstName: null,
-        lastName: null,
-      });
+      const verificationToken = createInvitationToken();
 
       const pendingUser = await prisma.pendingUser.upsert({
         where: { email: normalizedEmail },
@@ -95,6 +91,8 @@ export const supervisorRouter = createTRPCRouter({
           tokenExpiresAt: new Date(Date.now() + 1000 * 60 * 60 * 24 * 7),
         },
         update: {},
+        // Le jeton ne sert qu’à l’e-mail d’invitation envoyé plus bas.
+        select: { verificationToken: true },
       });
 
       await prisma.pendingSupervisor.create({

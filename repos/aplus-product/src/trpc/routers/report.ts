@@ -315,6 +315,19 @@ interface ScopeStats {
   total: number;
 }
 
+// Auteur OU co-auteur. `coAuthors: { some }` dans un OR force un parcours complet de "Report" :
+// on résout d'abord les co-écrits pour que le OR soit servi par les index authorId et id.
+async function authoredOrCoAuthoredWhere(
+  userId: string,
+): Promise<Prisma.ReportWhereInput> {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { coAuthoredReports: { select: { id: true } } },
+  });
+  const coAuthoredIds = user?.coAuthoredReports.map((r) => r.id) ?? [];
+  return { OR: [{ authorId: userId }, { id: { in: coAuthoredIds } }] };
+}
+
 // Compte les signalements d'un périmètre par catégorie d'affichage du bandeau.
 // `treated` = COMPLETED uniquement (signalements traités restant à fermer, hors CLOSED) ;
 // `overdue` = overdueAt non nul.
@@ -441,9 +454,7 @@ export const reportRouter = createTRPCRouter({
           conditions.push({ id: "none" });
         }
       } else if (!isAdminUser) {
-        conditions.push({
-          OR: [{ authorId: userId }, { coAuthors: { some: { id: userId } } }],
-        });
+        conditions.push(await authoredOrCoAuthoredWhere(userId));
       }
 
       if (status && status.length > 0) {
@@ -751,9 +762,7 @@ export const reportRouter = createTRPCRouter({
         requestedTeams: { some: { users: { some: { id: userId } } } },
       };
     } else {
-      createdWhere = {
-        OR: [{ authorId: userId }, { coAuthors: { some: { id: userId } } }],
-      };
+      createdWhere = await authoredOrCoAuthoredWhere(userId);
       requestedWhere = {
         requestedTeams: { some: { users: { some: { id: userId } } } },
       };
@@ -950,6 +959,7 @@ export const reportRouter = createTRPCRouter({
               },
             },
             author: true,
+            pseudonymized: { select: { subject: true, description: true } },
           },
         }),
         fetchViewerIdSet(input),

@@ -1,6 +1,7 @@
-import type { Prisma, PrismaClient } from "@/generated/prisma/client";
+import { Prisma, type PrismaClient } from "@/generated/prisma/client";
 import { highestTokens } from "@/lib/ai/pseudonymize";
 import type {
+  PseudonymizationRefusal,
   PseudonymizedPieces,
   StoredPseudonymizationSource,
 } from "@/types/pseudonymized-report";
@@ -70,11 +71,18 @@ export async function recordPseudonymizationRefusal(
   prisma: PrismaClient,
   reportId: string,
   refusedAt: Date,
+  refusal: PseudonymizationRefusal | undefined,
 ): Promise<void> {
+  // Le motif du dernier refus remplace le précédent, `null` compris.
+  const reason = {
+    kind: refusal?.kind ?? null,
+    violationCounts: refusal?.violationCounts ?? Prisma.DbNull,
+    providerStatus: refusal?.providerStatus ?? null,
+  };
   await prisma.reportPseudonymizationRefusal.upsert({
     where: { reportId },
-    create: { reportId, refusedAt },
-    update: { refusedAt },
+    create: { reportId, refusedAt, ...reason },
+    update: { refusedAt, ...reason },
   });
 }
 

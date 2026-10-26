@@ -52,14 +52,18 @@ export const auth = betterAuth({
     provider: "postgresql",
   }),
   session: {
-    expiresIn: 60 * 60 * 24 * 7, // 7 days
-    updateAge: 60 * 60 * 24, // 1 day
+    // Durée absolue de 14 h depuis la connexion, sans prolongation par
+    // l'activité : une journée de travail, pas davantage. Sur les postes
+    // partagés (France Services, mairies), une session glissante restait
+    // ouverte tant qu'un usager revenait dans la semaine.
+    expiresIn: 60 * 60 * 14,
+    disableSessionRefresh: true,
     // Désactivé volontairement : customSession relit l'utilisateur en base à
     // chaque appel même cache actif (vérifié), donc on ne gagnerait que la
     // lecture Redis en retardant la révocation de session de maxAge.
     cookieCache: {
       enabled: false,
-      maxAge: 60 * 60 * 24 * 7, // 7 days
+      maxAge: 60 * 60 * 14,
     },
   },
   databaseHooks: {

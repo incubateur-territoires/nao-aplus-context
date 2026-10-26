@@ -1,3 +1,6 @@
+import type { ReportPseudonymizationRefusalKind } from "@/generated/prisma/enums";
+import type { PiiType } from "@/types/ai-pipeline";
+
 /** Texte pseudonymisé d'un dossier complet, prêt à remplacer le texte réel. */
 export interface PseudonymizedContent {
   subject: string;
@@ -15,4 +18,16 @@ export interface StoredPseudonymizationSource {
 export interface PseudonymizedPieces {
   report: { subject: string; description: string } | null;
   answers: { id: string; content: string }[];
+}
+
+/**
+ * Motif d'un refus de caviardage, sans aucun contenu : des types de données et
+ * des comptes, jamais une valeur restée en clair.
+ */
+export interface PseudonymizationRefusal {
+  kind: ReportPseudonymizationRefusalKind;
+  /** Données restées en clair, par type : sur un refus de la garde. */
+  violationCounts?: Partial<Record<PiiType, number>>;
+  /** Statut HTTP du rejet : sur un refus du fournisseur, s'il est connu. */
+  providerStatus?: number;
 }

@@ -81,3 +81,11 @@ export function classifyPipelineError(
 
   return null;
 }
+
+/** Statut HTTP du dernier appel en échec, s'il y en a un : sert au motif d'un refus. */
+export function pipelineErrorStatusCode(error: unknown): number | undefined {
+  if (RetryError.isInstance(error)) {
+    return pipelineErrorStatusCode(error.lastError);
+  }
+  return APICallError.isInstance(error) ? error.statusCode : undefined;
+}

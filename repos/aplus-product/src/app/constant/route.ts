@@ -32,9 +32,11 @@ export const ROUTE = {
   COMPLETE_PROFILE: "/profil-incomplet",
   VERIFY_2FA: "/verification-2fa",
   SETUP_2FA: "/configurer-2fa",
+  CGU_ACCEPTANCE: "/nouvelles-conditions-generales-d-utilisation",
   ADMINISTRATION: "/admin",
   ADMIN_BANNER: "/admin/bandeau",
   ANONYMIZED_REPORTS: "/admin/signalements-anonymises",
+  ADMIN_TAGGING: "/admin/etiquetage",
   GOLDEN_DATASET: "/golden-dataset",
   GOLDEN_DATASET_RESULTS: "/golden-dataset/resultats",
 };

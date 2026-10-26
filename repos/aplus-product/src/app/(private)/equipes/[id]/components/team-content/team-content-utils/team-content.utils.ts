@@ -8,15 +8,6 @@ export function getActivityLabel(totalReports: number): string {
   return `${totalReports} signalements`;
 }
 
-export function getLastActivityDate(dates: Date[]): Date | null {
-  if (!dates.length) {
-    return null;
-  }
-  const timestamps = dates.map((date) => date.getTime());
-  const maxTimestamp = Math.max(...timestamps);
-  return new Date(maxTimestamp);
-}
-
 export interface ActivityMetrics {
   signalements: number;
   sollicitations: number;

@@ -6,7 +6,7 @@ import {
 } from "./team-content-columns";
 import { render, screen, fireEvent, act } from "@testing-library/react";
 import type { CellContext } from "@tanstack/react-table";
-import { MOCK_DATES, USER_ROLES } from "@/test/mocks";
+import { USER_ROLES } from "@/test/mocks";
 import { TeamRole } from "@/types/team";
 
 interface ResendMutationOptions {
@@ -70,7 +70,6 @@ describe("getTeamMembersColumns", () => {
     profession: "Developer",
     activityLabels: ["5 signalements"],
     activityMetrics: { signalements: 5, sollicitations: 0, participations: 0 },
-    lastActivity: MOCK_DATES.JAN_1_2024,
     isPending: false,
     isInactive: false,
   };
@@ -246,88 +245,9 @@ describe("getTeamMembersColumns", () => {
     }
   });
 
-  it("includes last-activity column", () => {
-    const columns = getTeamMembersColumns(mockOnRemoveUser);
-    const lastActivityColumn = columns.find(
-      (col) => col.id === "last-activity",
-    );
-    expect(lastActivityColumn).toBeDefined();
-    expect(lastActivityColumn?.enableSorting).toBe(true);
-  });
-
-  it("last-activity column accessorFn returns lastActivity", () => {
-    const columns = getTeamMembersColumns(mockOnRemoveUser);
-    const lastActivityColumn = columns.find(
-      (col) => col.id === "last-activity",
-    );
-
-    expect(lastActivityColumn).toBeDefined();
-    if (lastActivityColumn && "accessorFn" in lastActivityColumn) {
-      const result = lastActivityColumn.accessorFn(mockTeamMember, 0);
-      expect(result).toEqual(MOCK_DATES.JAN_1_2024);
-    }
-  });
-
-  it("last-activity column cell renders formatted date when lastActivity exists", () => {
-    const columns = getTeamMembersColumns(mockOnRemoveUser);
-    const lastActivityColumn = columns.find(
-      (col) => col.id === "last-activity",
-    );
-
-    expect(lastActivityColumn).toBeDefined();
-    if (
-      lastActivityColumn &&
-      "cell" in lastActivityColumn &&
-      typeof lastActivityColumn.cell === "function"
-    ) {
-      const mockCellContext = {
-        row: { original: mockTeamMember, id: "1", index: 0 },
-        getValue: () => "",
-        column: {} as CellContext<TeamMemberRow, unknown>["column"],
-        renderValue: () => "",
-        cell: {} as CellContext<TeamMemberRow, unknown>["cell"],
-        table: {} as CellContext<TeamMemberRow, unknown>["table"],
-      } as CellContext<TeamMemberRow, unknown>;
-
-      const { container } = render(
-        <>{lastActivityColumn.cell(mockCellContext)}</>,
-      );
-      expect(container.textContent).toBeTruthy();
-      expect(container.textContent).not.toBe("-");
-    }
-  });
-
-  it("last-activity column cell renders '-' when lastActivity is null", () => {
-    const columns = getTeamMembersColumns(mockOnRemoveUser);
-    const lastActivityColumn = columns.find(
-      (col) => col.id === "last-activity",
-    );
-
-    const memberWithoutActivity: TeamMemberRow = {
-      ...mockTeamMember,
-      lastActivity: null,
-    };
-
-    expect(lastActivityColumn).toBeDefined();
-    if (
-      lastActivityColumn &&
-      "cell" in lastActivityColumn &&
-      typeof lastActivityColumn.cell === "function"
-    ) {
-      const mockCellContext = {
-        row: { original: memberWithoutActivity, id: "1", index: 0 },
-        getValue: () => "",
-        column: {} as CellContext<TeamMemberRow, unknown>["column"],
-        renderValue: () => "",
-        cell: {} as CellContext<TeamMemberRow, unknown>["cell"],
-        table: {} as CellContext<TeamMemberRow, unknown>["table"],
-      } as CellContext<TeamMemberRow, unknown>;
-
-      const { container } = render(
-        <>{lastActivityColumn.cell(mockCellContext)}</>,
-      );
-      expect(container.textContent).toBe("-");
-    }
+  it("does not include a last-activity column", () => {
+    const columns = getTeamMembersColumns(mockOnRemoveUser, true, true);
+    expect(columns.find((col) => col.id === "last-activity")).toBeUndefined();
   });
 
   it("does not include actions column when isManager is false", () => {

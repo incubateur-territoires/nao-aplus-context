@@ -5,7 +5,6 @@ import type {
   ReportStatusHistoryType,
   TimelineItem,
 } from "./types";
-import { OrganizationRole } from "@/generated/prisma/enums";
 import { createMockReportTeam, USER_ROLES } from "@/test/mocks";
 
 const createMockAnswer = (
@@ -53,35 +52,7 @@ const createMockAnswer = (
     teams: [],
   },
   report: {
-    id: "request-1",
-    authorId: "author-1",
-    status: "PENDING_ASSIGNMENT" as const,
-    caf: null,
-    nir: null,
-    nif: null,
-    maritalName: null,
-    subject: "Test Subject",
-    description: "Test Description",
-    phone: null,
-    firstName: "John",
-    lastName: "Doe",
-    birthDate: "1990-01-01",
-    citizenPermissionConfirmed: true,
-    areaId: "area-1",
-    applicantTeamId: "group-1",
-    organizationId: null,
-    createdAt: new Date(),
-    updatedAt: new Date(),
-    lastAnswerAt: null,
-    overdueAt: null,
-    pseudonymizationStatus: null,
-    userId: null,
-    applicantTeam: createMockReportTeam({
-      id: "group-1",
-      name: "Test Group",
-      organizationId: "organization-1",
-      role: OrganizationRole.OPERATOR,
-    }),
+    applicantTeam: { id: "group-1" },
     requestedTeams: [],
   },
   files: [],
@@ -262,7 +233,6 @@ describe("getAuthorGroup", () => {
     const answer = createMockAnswer("answer-1", "author-1");
     answer.author.teams = authorTeams;
     answer.report.applicantTeam = applicantTeam;
-    answer.report.applicantTeamId = applicantTeam.id;
     answer.report.requestedTeams = requestedTeams;
     return answer;
   }

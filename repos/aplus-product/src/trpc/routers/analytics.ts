@@ -3,6 +3,10 @@ import { adminProcedure, createTRPCRouter } from "../init";
 import prisma from "@/lib/prisma";
 import { ANALYTICS_EVENTS } from "@/types/analytics";
 import { formatUserAgent } from "@/utils/format-user-agent";
+import {
+  isInactivityDeactivation,
+  SYSTEM_ACTOR_NAME,
+} from "@/utils/format-analytics-event";
 import type { Prisma } from "@/generated/prisma/client";
 import { ReportStatus } from "@/generated/prisma/enums";
 
@@ -240,9 +244,16 @@ export const analyticsRouter = createTRPCRouter({
           occurredAt: Date | null;
           createdAt: Date;
           userId: string | null;
+          metadata: Prisma.JsonValue;
         } | null,
       ): { at: Date; actorName: string | null } | null {
         if (!event) return null;
+        if (isInactivityDeactivation(event.metadata)) {
+          return {
+            at: event.occurredAt ?? event.createdAt,
+            actorName: SYSTEM_ACTOR_NAME,
+          };
+        }
         return {
           at: event.occurredAt ?? event.createdAt,
           actorName: event.userId ? (nameById.get(event.userId) ?? null) : null,
@@ -264,7 +275,7 @@ export const analyticsRouter = createTRPCRouter({
         // Navigateur connu uniquement via la dernière session.
         lastSignInBrowser: formatUserAgent(latestSession?.userAgent),
         // Dernière utilisation de l'app, notion distincte de la connexion
-        // (une session reste ouverte 7 jours entre deux logins).
+        // (une session reste ouverte jusqu'à 14 h après la connexion).
         lastActivityAt: userRecord?.lastActivityAt ?? null,
         accountCreatedAt: userRecord?.createdAt ?? null,
         reportsCreatedCount,

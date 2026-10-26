@@ -1,7 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import { AuthorInfo } from "./author-info";
 import type { AnswerType } from "../types";
-import { ReportStatus } from "@/generated/prisma/client";
 import { OrganizationRole, TeamType } from "@/generated/prisma/enums";
 import { createMockReportTeam, USER_ROLES } from "@/test/mocks";
 
@@ -80,35 +79,7 @@ const mockAnswer: AnswerType = {
     ],
   },
   report: {
-    id: "request-1",
-    authorId: "author-1",
-    status: ReportStatus.PENDING_ASSIGNMENT,
-    caf: null,
-    nir: null,
-    nif: null,
-    maritalName: null,
-    subject: "Test subject",
-    description: "Test description",
-    phone: null,
-    firstName: "Test",
-    lastName: "User",
-    birthDate: "1990-01-01",
-    createdAt: new Date(),
-    updatedAt: new Date(),
-    lastAnswerAt: null,
-    overdueAt: null,
-    pseudonymizationStatus: null,
-    areaId: "area-1",
-    applicantTeamId: "group-1",
-    citizenPermissionConfirmed: true,
-    organizationId: "structure-1",
-    userId: null,
-    applicantTeam: createMockReportTeam({
-      id: "group-1",
-      name: "Test Group",
-      organizationId: "structure-1",
-      role: OrganizationRole.OPERATOR,
-    }),
+    applicantTeam: { id: "group-1" },
     requestedTeams: [],
   },
   files: [],

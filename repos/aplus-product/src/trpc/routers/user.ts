@@ -24,11 +24,12 @@ import {
 } from "../middleware/authorization";
 import { findMostActiveTeamMember } from "@/utils/report";
 import {
-  createVerificationToken,
+  createInvitationToken,
   hashResetToken,
 } from "@/utils/verification-token";
 import { isDebugModeEnabled } from "@/utils/debug-mode";
 import { normalizeEmail } from "@/utils/normalize";
+import { mustAcceptCurrentCgu } from "@/utils/cgu";
 import * as Sentry from "@sentry/nextjs";
 
 export const userRouter = createTRPCRouter({
@@ -114,6 +115,37 @@ export const userRouter = createTRPCRouter({
     });
 
     return user?.role === USER_ROLES.SUPERVISOR;
+  }),
+
+  getCguStatus: protectedProcedure.query(async ({ ctx }) => {
+    const user = await prisma.user.findUnique({
+      where: { id: ctx.userId },
+      select: { cguAcceptedAt: true },
+    });
+
+    return {
+      mustAccept: mustAcceptCurrentCgu({
+        cguAcceptedAt: user?.cguAcceptedAt ?? null,
+        impersonatedBy: ctx.impersonatedBy ?? null,
+      }),
+    };
+  }),
+
+  acceptCgu: protectedProcedure.mutation(async ({ ctx }) => {
+    if (ctx.impersonatedBy) {
+      throw new TRPCError({
+        code: "FORBIDDEN",
+        message:
+          "Les conditions générales d'utilisation doivent être acceptées par l'utilisateur lui-même.",
+      });
+    }
+
+    await prisma.user.update({
+      where: { id: ctx.userId },
+      data: { cguAcceptedAt: new Date() },
+    });
+
+    return { success: true };
   }),
 
   // Lightweight query to check if current user is a manager of any team
@@ -745,11 +777,7 @@ export const userRouter = createTRPCRouter({
         });
       }
 
-      const verificationToken = await createVerificationToken({
-        email: pendingUser.email,
-        firstName: pendingUser.firstName,
-        lastName: pendingUser.lastName,
-      });
+      const verificationToken = createInvitationToken();
 
       await prisma.pendingUser.update({
         where: { id: input.pendingUserId },
@@ -1527,6 +1555,12 @@ export const userRouter = createTRPCRouter({
           data: {
             isInactive: null,
             notificationsViewedBefore: new Date(),
+            // Sans cette remise à zéro, un compte désactivé pour inactivité
+            // garde sa vieille date d'activité et ses deux avertissements : le
+            // cron d'inactivité le redésactive à son passage suivant (moins de
+            // 3 jours), sans nouvel avertissement.
+            lastActivityAt: new Date(),
+            inactivityWarningsSentAt: [],
             teams: { connect: teamIds.map((id) => ({ id })) },
             managedTeams: { connect: managedTeamIds.map((id) => ({ id })) },
           },
@@ -2308,7 +2342,7 @@ export const userRouter = createTRPCRouter({
       ]);
       // Les sessions vivent dans Redis (secondaryStorage), pas dans la table
       // Postgres : sans cette révocation, un cookie volé resterait valide
-      // jusqu'à 7 jours après le reset.
+      // jusqu'à 14 h après le reset.
       await revokeUserSessions(userId);
 
       return { success: true };

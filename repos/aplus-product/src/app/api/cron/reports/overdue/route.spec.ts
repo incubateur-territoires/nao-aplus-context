@@ -185,35 +185,62 @@ describe("GET /api/cron/reports/overdue", () => {
       );
     });
 
-    it("Case 2 still requires an operator answer with no recent operator answer", async () => {
+    it("Case 2 requires an operator message older than the calendar-day cutoff", async () => {
       mockFindMany.mockResolvedValue([]);
 
       await GET(createRequest());
 
       const case2Where = mockFindMany.mock.calls[1][0].where;
-      expect(case2Where.answers.some.author.teams.some.role).toBe(
-        OrganizationRole.OPERATOR,
-      );
-      expect(case2Where.answers.none.author.teams.some.role).toBe(
-        OrganizationRole.OPERATOR,
-      );
+      expect(case2Where.answers.some).toEqual({
+        isMetadataOnly: false,
+        author: { teams: { some: { role: OrganizationRole.OPERATOR } } },
+      });
       expect(case2Where.answers.none.createdAt.gte).toBeInstanceOf(Date);
     });
   });
 
-  describe("réinitialisation du compteur au repassage en cours de traitement", () => {
-    it("Case 2 exclut tout signalement ayant eu une activité (réponse) dans les 15 derniers jours", async () => {
+  describe("messages techniques (isMetadataOnly)", () => {
+    // Retrait ou désactivation d'un membre, invitation d'une équipe ou d'un
+    // collègue : ces messages sont souvent signés par un membre de l'équipe
+    // opérateur, mais ne répondent pas à l'aidant.
+    it("Case 1 ne compte pas un message technique d'opérateur comme une réponse", async () => {
       mockFindMany.mockResolvedValue([]);
 
       await GET(createRequest());
 
-      // Le repassage en cours de traitement crée une réponse et bumpe `lastAnswerAt`.
-      // Ce garde-fou empêche donc le cron de re-flaguer immédiatement le signalement :
-      // il ne repassera "en souffrance" que 15 jours après la date de repassage.
-      const case2Where = mockFindMany.mock.calls[1][0].where;
-      expect(case2Where.NOT).toEqual({
-        lastAnswerAt: { gte: expect.any(Date) },
+      const case1Where = mockFindMany.mock.calls[0][0].where;
+      expect(case1Where.answers.none).toEqual({
+        isMetadataOnly: false,
+        author: { teams: { some: { role: OrganizationRole.OPERATOR } } },
       });
+    });
+
+    it("Case 2 ne laisse pas un message technique récent repousser l'échéance", async () => {
+      mockFindMany.mockResolvedValue([]);
+
+      await GET(createRequest());
+
+      const case2Where = mockFindMany.mock.calls[1][0].where;
+      expect(case2Where.answers.none).toEqual({
+        isMetadataOnly: false,
+        createdAt: { gte: expect.any(Date) },
+      });
+      // `lastAnswerAt` est aussi mis à jour par les invitations (messages
+      // techniques) : il ne peut plus servir de garde-fou.
+      expect(case2Where.NOT).toBeUndefined();
+    });
+  });
+
+  describe("réinitialisation du compteur au repassage en cours de traitement", () => {
+    it("Case 2 exclut tout signalement ayant reçu un message, de quiconque, dans les 15 derniers jours", async () => {
+      mockFindMany.mockResolvedValue([]);
+
+      await GET(createRequest());
+
+      // Le repassage en cours de traitement crée un message (non technique) :
+      // le signalement ne repassera "en souffrance" que 15 jours après.
+      const case2Where = mockFindMany.mock.calls[1][0].where;
+      expect(case2Where.answers.none).not.toHaveProperty("author");
     });
 
     it("utilise un seuil de 15 jours calendaires pour le garde-fou d'activité", async () => {
@@ -225,7 +252,8 @@ describe("GET /api/cron/reports/overdue", () => {
 
       await GET(createRequest());
 
-      const cutoff = mockFindMany.mock.calls[1][0].where.NOT.lastAnswerAt.gte;
+      const cutoff =
+        mockFindMany.mock.calls[1][0].where.answers.none.createdAt.gte;
       // Tolérance de 5 secondes pour l'écart d'exécution.
       expect(
         Math.abs(cutoff.getTime() - expectedCutoff.getTime()),
@@ -239,6 +267,7 @@ describe("GET /api/cron/reports/overdue", () => {
 
       const case1Where = mockFindMany.mock.calls[0][0].where;
       expect(case1Where.NOT).toBeUndefined();
+      expect(case1Where.answers.none).not.toHaveProperty("createdAt");
     });
   });
 

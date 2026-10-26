@@ -9,10 +9,12 @@ import { crmRouter } from "./crm";
 import { cronRouter } from "./cron";
 import { debugRouter } from "./debug";
 import { goldenDatasetRouter } from "./golden-dataset";
+import { quickSearchRouter } from "./quick-search";
 import { reportRouter } from "./report";
 import { organizationRouter } from "./organization";
 import { statsRouter } from "./stats";
 import { taggingFeedbackRouter } from "./tagging-feedback";
+import { taggingStatsRouter } from "./tagging-stats";
 import { userRouter } from "./user";
 import { teamRouter } from "./team";
 import { supervisorRouter } from "./supervisor";
@@ -38,6 +40,8 @@ export const appRouter = createTRPCRouter({
   analytics: analyticsRouter,
   anonymizedReport: anonymizedReportRouter,
   taggingFeedback: taggingFeedbackRouter,
+  taggingStats: taggingStatsRouter,
+  quickSearch: quickSearchRouter,
 });
 
 // export type definition of API

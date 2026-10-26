@@ -119,11 +119,28 @@ model PseudonymizedAnswer {
 // Dernier refus du caviardage d'un signalement par le cron de pseudonymisation.
 // Sans elle, les refus resteraient en tête des candidats et videraient chaque
 // nuit le budget ; ils ne sont retentés qu'après un délai.
+//
+// Le motif est gardé pour compter les refus par cause, jamais leur contenu : on
+// note le type des données restées en clair et leur nombre, pas leur valeur.
+// `kind` null : refus enregistré avant qu'on en garde le motif.
 model ReportPseudonymizationRefusal {
-  id        String   @id @default(uuid())
-  reportId  String   @unique
-  report    Report   @relation(fields: [reportId], references: [id], onDelete: Cascade)
-  refusedAt DateTime
+  id              String                             @id @default(uuid())
+  reportId        String                             @unique
+  report          Report                             @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  refusedAt       DateTime
+  kind            ReportPseudonymizationRefusalKind?
+  /// Nombre de données restées en clair par type (`PII_TYPES`), sur un refus de la garde.
+  violationCounts Json?
+  /// Statut HTTP renvoyé par le fournisseur, sur un refus du fournisseur.
+  providerStatus  Int?
+}
+
+/// Cause d'un refus de caviardage.
+enum ReportPseudonymizationRefusalKind {
+  /// Le texte caviardé contient encore des données identifiantes.
+  GUARD
+  /// Le fournisseur a lu la requête et l'a rejetée (4xx hors quota et configuration).
+  PROVIDER
 }
 
 // Les deux étiquettes posées par le modèle sur le texte pseudonymisé, une ligne par

@@ -163,10 +163,11 @@ export const answerRouter = createTRPCRouter({
             ...(isHelper ? { isOperatorOnly: false } : {}),
           },
           include: {
+            // Seuls les identifiants d'équipe servent au fil : le texte du signalement n'en sort pas.
             report: {
-              include: {
-                applicantTeam: true,
-                requestedTeams: true,
+              select: {
+                applicantTeam: { select: { id: true } },
+                requestedTeams: { select: { id: true } },
               },
             },
             author: {
@@ -179,6 +180,7 @@ export const answerRouter = createTRPCRouter({
               },
             },
             files: { select: { id: true, name: true } },
+            pseudonymized: { select: { content: true } },
           },
           orderBy: { createdAt: "asc" },
         }),
@@ -221,9 +223,7 @@ export const answerRouter = createTRPCRouter({
         },
         include: {
           report: {
-            include: {
-              applicantTeam: true,
-            },
+            select: { applicantTeam: { select: { id: true } } },
           },
           author: {
             include: {
@@ -235,6 +235,7 @@ export const answerRouter = createTRPCRouter({
             },
           },
           files: { select: { id: true, name: true } },
+          pseudonymized: { select: { content: true } },
         },
         orderBy: { createdAt: "asc" },
       });

@@ -122,6 +122,13 @@ Trois pièges y coûtent le plus de temps. Le développement local tourne sur la
 
 Quand un test échoue, remonter à la cause. Adapter le test au code n'est légitime que si le comportement attendu a délibérément changé, et cela se dit dans le message de commit.
 
+## Fin de tâche
+
+- Si tu as lancé `next dev`, arrête-le avant de rendre la main. Un serveur oublié bloque le prochain `bun dev` du même dossier (« Another next dev server is already running »).
+- Si tu as utilisé agent-browser, termine par `agent-browser close`.
+
+`aplus-verify cleanup` fait les deux pour ce qu'il a lancé. N'arrêter que ses propres processus, désignés par PID ou par le port de l'arbre : jamais de `pkill -f next-server` ni d'autre motif large, qui tuerait aussi le serveur d'un autre worktree ou celui lancé à la main.
+
 <!-- BEGIN:nextjs-agent-rules -->
 
 # This is NOT the Next.js you know

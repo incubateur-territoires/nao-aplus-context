@@ -10,10 +10,7 @@ import { useSession } from "@/app/component/auth-provider/auth-provider";
 import { OrganizationRole } from "@/generated/prisma/enums";
 import { USER_ROLES } from "@/constants/user-roles";
 import { TeamRole } from "@/types/team";
-import {
-  getActivityLabels,
-  getLastActivityDate,
-} from "../team-content-utils/team-content.utils";
+import { getActivityLabels } from "../team-content-utils/team-content.utils";
 import type { TeamMemberRow } from "../team-content-columns/team-content-columns";
 
 interface UseTeamContentOptions {
@@ -94,14 +91,6 @@ export function useTeamContent({ teamId }: UseTeamContentOptions) {
   const members: TeamMemberRow[] =
     team?.users.map((user) => {
       const fullName = `${user.firstName} ${user.lastName}`;
-      const authoredDates = user.authoredReports?.map(
-        (report) => report.createdAt,
-      );
-      const coAuthoredDates = user.coAuthoredReports?.map(
-        (report) => report.createdAt,
-      );
-      const allDates = [...(authoredDates || []), ...(coAuthoredDates || [])];
-      const lastActivity = getLastActivityDate(allDates);
 
       const roleLabel =
         user.role === USER_ROLES.ADMIN
@@ -124,7 +113,6 @@ export function useTeamContent({ teamId }: UseTeamContentOptions) {
         profession: user.profession,
         activityLabels,
         activityMetrics: userMetrics,
-        lastActivity,
         isPending: false,
         isInactive: !!user.isInactive,
       };
@@ -146,7 +134,6 @@ export function useTeamContent({ teamId }: UseTeamContentOptions) {
         profession: "",
         activityLabels: [],
         activityMetrics: undefined,
-        lastActivity: null,
         isPending: true,
         isInactive: false,
       };

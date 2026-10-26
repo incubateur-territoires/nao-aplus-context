@@ -1,11 +1,19 @@
 import {
   PIPELINE_ERROR_KINDS,
   classifyPipelineError,
+  pipelineErrorStatusCode,
 } from "@/lib/ai/pipeline-error";
 import type { TokenCounters } from "@/lib/ai/pseudonymize";
 import { redactReport } from "@/lib/ai/redact-report";
-import type { PseudonymizedContent } from "@/types/pseudonymized-report";
+import type {
+  PseudonymizationRefusal,
+  PseudonymizedContent,
+} from "@/types/pseudonymized-report";
 import { createLogger } from "@/utils/logger";
+import {
+  guardRefusal,
+  providerRefusal,
+} from "@/utils/pseudonymization-refusal";
 
 /**
  * Pseudonymisation du texte libre d'un signalement, pour le conserver au lieu
@@ -76,6 +84,8 @@ export interface PseudonymizationAttempt {
   content?: PseudonymizedContent;
   /** Renseigné sur REFUSED et OUTAGE, pour les métriques et l'alerte. */
   reason?: string;
+  /** Renseigné sur REFUSED : le motif stocké avec le refus. */
+  refusal?: PseudonymizationRefusal;
 }
 
 function fullName(person: { firstName: string; lastName: string } | null) {
@@ -125,7 +135,11 @@ export async function pseudonymizeReportContent(
       // Les valeurs en cause ne sont jamais journalisées : ce sont des PII.
       const reason = `garde non satisfaite (${result.guard.violations.length} donnée(s) résiduelle(s))`;
       logger.info("Caviardage refusé", { reportId, reason });
-      return { outcome: PSEUDONYMIZATION_OUTCOMES.REFUSED, reason };
+      return {
+        outcome: PSEUDONYMIZATION_OUTCOMES.REFUSED,
+        reason,
+        refusal: guardRefusal(result.guard.violations),
+      };
     }
 
     return {
@@ -143,7 +157,11 @@ export async function pseudonymizeReportContent(
     const reason = error instanceof Error ? error.message : String(error);
     if (kind === PIPELINE_ERROR_KINDS.REFUSED) {
       logger.info("Caviardage refusé par le fournisseur", { reportId, reason });
-      return { outcome: PSEUDONYMIZATION_OUTCOMES.REFUSED, reason };
+      return {
+        outcome: PSEUDONYMIZATION_OUTCOMES.REFUSED,
+        reason,
+        refusal: providerRefusal(pipelineErrorStatusCode(error)),
+      };
     }
     logger.error("Pipeline de caviardage indisponible", { reportId, reason });
     return { outcome: PSEUDONYMIZATION_OUTCOMES.OUTAGE, reason };

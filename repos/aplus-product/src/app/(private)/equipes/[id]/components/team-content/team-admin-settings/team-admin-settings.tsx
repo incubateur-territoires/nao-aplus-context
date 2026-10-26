@@ -22,6 +22,11 @@ import {
   HELPER_TYPE_OPTIONS,
   getTeamTypeOnOrganizationChange,
 } from "@/utils/team-type";
+import {
+  isValidRegistrationNumber,
+  REGISTRATION_NUMBER_FORMAT_MESSAGE,
+  REGISTRATION_NUMBER_REQUIRED_MESSAGE,
+} from "@/utils/registration-number";
 import { TeamDeletionPreview } from "../team-deletion-preview/team-deletion-preview";
 import { useFocusOnVisible } from "@/app/hooks/use-focus-on-visible";
 
@@ -30,7 +35,11 @@ const teamAdminSettingsSchema = z.object({
   organizationId: z.string().min(1, "L'organisation est requise"),
   adminComment: z.string().nullable(),
   type: z.nativeEnum(TeamType),
+  registrationNumber: z.string().nullable(),
 });
+
+const REGISTRATION_NUMBER_TAKEN =
+  "Ce matricule correspond à une équipe qui existe déjà sur Administration+. Veuillez saisir un autre matricule.";
 
 type TeamAdminSettingsFormValues = z.infer<typeof teamAdminSettingsSchema>;
 
@@ -68,6 +77,7 @@ export function TeamAdminSettings({ teamId }: { teamId: string }) {
       organizationId: "",
       adminComment: null,
       type: TeamType.OTHERS_HELPERS,
+      registrationNumber: null,
     },
   });
 
@@ -79,6 +89,7 @@ export function TeamAdminSettings({ teamId }: { teamId: string }) {
       organizationId: team.organizationId,
       adminComment: team.adminComment ?? null,
       type: team.type,
+      registrationNumber: team.registrationNumber ?? null,
     });
     lastTeamIdRef.current = team.id;
   }
@@ -91,6 +102,13 @@ export function TeamAdminSettings({ teamId }: { teamId: string }) {
             trpc.team.getTeamById.queryOptions(teamId),
           );
           setShowSuccessAlert(true);
+        },
+        onError: (error) => {
+          if (error.message === REGISTRATION_NUMBER_TAKEN) {
+            formMethods.setError("registrationNumber", {
+              message: error.message,
+            });
+          }
         },
       }),
     );
@@ -124,12 +142,31 @@ export function TeamAdminSettings({ teamId }: { teamId: string }) {
     setShowSuccessAlert(false);
     try {
       if (isAdmin) {
+        const registrationNumber = data.registrationNumber?.trim();
+        if (isFranceServiceOrg && !registrationNumber) {
+          formMethods.setError("registrationNumber", {
+            message: REGISTRATION_NUMBER_REQUIRED_MESSAGE,
+          });
+          return;
+        }
+        if (
+          isFranceServiceOrg &&
+          registrationNumber &&
+          !isValidRegistrationNumber(registrationNumber)
+        ) {
+          formMethods.setError("registrationNumber", {
+            message: REGISTRATION_NUMBER_FORMAT_MESSAGE,
+          });
+          return;
+        }
         await updateTeamAdmin({
           id: teamId,
           areaIds: data.areaIds,
           organizationId: data.organizationId,
           adminComment: data.adminComment,
           type: data.type,
+          // Hors France Services, le matricule en base est laissé tel quel.
+          ...(isFranceServiceOrg && { registrationNumber }),
         });
       } else {
         await updateTeamAreas({
@@ -318,6 +355,29 @@ export function TeamAdminSettings({ teamId }: { teamId: string }) {
                     />
                   )
                 }
+              />
+            )}
+
+            {isAdmin && isFranceServiceOrg && (
+              <Controller
+                control={formMethods.control}
+                name="registrationNumber"
+                render={({ field, fieldState }) => (
+                  <div className="w-full md:w-[400px]">
+                    <Input
+                      label="Matricule"
+                      state={fieldState.error ? "error" : "default"}
+                      stateRelatedMessage={fieldState.error?.message}
+                      nativeInputProps={{
+                        value: field.value ?? "",
+                        onChange: (e) => {
+                          field.onChange(e.target.value || null);
+                          formMethods.clearErrors("registrationNumber");
+                        },
+                      }}
+                    />
+                  </div>
+                )}
               />
             )}
 

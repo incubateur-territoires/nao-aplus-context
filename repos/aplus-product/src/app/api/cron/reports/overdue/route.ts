@@ -99,7 +99,10 @@ export async function GET(request: NextRequest) {
       overdueAt: null,
     };
 
+    // Les messages techniques (retrait ou désactivation d'un membre, invitation)
+    // sont souvent signés par un opérateur mais ne répondent pas à l'aidant.
     const operatorAnswerFilter = {
+      isMetadataOnly: false,
       author: { teams: { some: { role: OrganizationRole.OPERATOR } } },
     };
 
@@ -134,38 +137,25 @@ export async function GET(request: NextRequest) {
       select: reportSelect,
     });
 
-    // Case 2: has operator answers AND latest operator answer is more than 15 calendar days ago
-    // Expressed as: at least one operator answer exists AND no operator answer is recent
+    // Case 2: has an operator answer AND no message at all in the last 15 calendar days
     //
-    // Réinitialisation du compteur "en souffrance" lors d'un repassage "en cours de
-    // traitement" :
-    // Rouvrir un signalement (Traité/Clôturé → En cours de traitement) passe par
-    // `answer.createAnswer`, qui crée une réponse, met `lastAnswerAt` à la date du
-    // repassage et remet `overdueAt` à null (cf. src/trpc/routers/answer.ts).
-    // Sans le garde-fou ci-dessous, ce reset de `overdueAt` serait annulé dès le
-    // passage suivant du cron : la dernière réponse *opérateur* (antérieure à la
-    // clôture) a presque toujours plus de 15 jours, donc le signalement repasserait
-    // immédiatement "en souffrance".
-    //
-    // On exclut donc tout signalement ayant eu une activité (n'importe quelle réponse,
-    // y compris celle générée par le repassage) dans les 15 derniers jours. Le compteur
-    // redémarre ainsi à la date de repassage : le signalement ne pourra repasser "en
-    // souffrance" que 15 jours calendaires après. Le garde-fou est additif :
-    // - il n'allège pas la détection de lenteur opérateur pour les signalements sans
-    //   activité récente (le `none` opérateur s'applique toujours) ;
-    // - les signalements historiques sans `lastAnswerAt` (null) restent éligibles, car
-    //   `NOT { lastAnswerAt >= cutoff }` est vrai pour une valeur nulle.
+    // Le second filtre porte sur tout message non technique, et pas seulement sur
+    // ceux des opérateurs : rouvrir un signalement (Traité/Clôturé → En cours de
+    // traitement) crée un message et remet `overdueAt` à null. Sans
+    // cela, la dernière réponse opérateur, antérieure à la clôture, ferait
+    // repasser le signalement "en souffrance" dès le passage suivant du cron.
+    // `lastAnswerAt` ne peut pas tenir ce rôle : les invitations, messages
+    // techniques, le mettent aussi à jour.
     const staleAnsweredReports = await prisma.report.findMany({
       where: {
         ...activeStatus,
         answers: {
           some: operatorAnswerFilter,
           none: {
-            ...operatorAnswerFilter,
+            isMetadataOnly: false,
             createdAt: { gte: calendarDayCutoff },
           },
         },
-        NOT: { lastAnswerAt: { gte: calendarDayCutoff } },
       },
       select: reportSelect,
     });

@@ -1,4 +1,10 @@
-import { EVENT_CATEGORIES, type EventCategory } from "@/types/analytics";
+import {
+  DEACTIVATION_TRIGGERS,
+  EVENT_CATEGORIES,
+  type EventCategory,
+} from "@/types/analytics";
+
+export const SYSTEM_ACTOR_NAME = "le système (tâche planifiée)";
 
 export const EVENT_CATEGORY_LABELS: Record<EventCategory, string> = {
   [EVENT_CATEGORIES.PAGE_VIEW]: "Navigation",
@@ -31,6 +37,10 @@ function asRecord(value: unknown): Record<string, unknown> {
 
 function asString(value: unknown): string | null {
   return typeof value === "string" && value !== "" ? value : null;
+}
+
+export function isInactivityDeactivation(metadata: unknown): boolean {
+  return asRecord(metadata).trigger === DEACTIVATION_TRIGGERS.INACTIVITY_CRON;
 }
 
 function asNumber(value: unknown): number | null {
@@ -163,7 +173,9 @@ export function formatAnalyticsEventDescription({
     case "user_admin_updated":
       return `${actor} a modifié le profil de ${target}${formatFields(asStringArray(data.fieldsUpdated))}`;
     case "user_deactivated":
-      return `${actor} a désactivé ${target}`;
+      return isInactivityDeactivation(data)
+        ? `Compte de ${target} désactivé par ${SYSTEM_ACTOR_NAME} après 6 mois d'inactivité`
+        : `${actor} a désactivé ${target}`;
     case "user_reactivated":
       return `${actor} a réactivé ${target}`;
 

@@ -117,6 +117,7 @@ const mockTeam = {
   pendingManagers: [],
   type: "OTHERS_HELPERS",
   adminComment: null,
+  registrationNumber: null as string | null,
 };
 
 const mockAreas = [
@@ -907,6 +908,174 @@ describe("TeamAdminSettings", () => {
         adminComment: null,
         type: "OTHERS_HELPERS",
       });
+    });
+  });
+
+  describe("matricule", () => {
+    const fsTeam = {
+      ...mockTeam,
+      organizationId: "org-fs",
+      type: "FRANCE_SERVICE",
+      registrationNumber: "12345",
+    };
+
+    function mockQueriesWithTeam(team: object) {
+      (useQuery as jest.Mock).mockImplementation((options) => {
+        const queryKey = JSON.stringify(options?.queryKey || []);
+        if (queryKey.includes("team") && queryKey.includes("getTeamById")) {
+          return { data: team, isLoading: false };
+        }
+        if (queryKey.includes("area") && queryKey.includes("getAreas")) {
+          return { data: mockAreas, isLoading: false };
+        }
+        if (
+          queryKey.includes("organization") &&
+          queryKey.includes("getOrganizations")
+        ) {
+          return { data: mockOrganizationsWithOperator, isLoading: false };
+        }
+        return { data: undefined, isLoading: false };
+      });
+    }
+
+    beforeEach(() => {
+      (useSession as jest.Mock).mockReturnValue({
+        data: { user: { id: MOCK_IDS.USER_1, role: USER_ROLES.ADMIN } },
+      });
+    });
+
+    it("shows the current matricule for a France Services team", async () => {
+      mockQueriesWithTeam(fsTeam);
+
+      render(<TeamAdminSettings teamId={MOCK_IDS.TEAM_1} />, {
+        wrapper: createWrapper(),
+      });
+
+      expect(await screen.findByLabelText("Matricule")).toHaveValue("12345");
+    });
+
+    it("hides the matricule for a non France Services team", async () => {
+      mockQueriesWithTeam(mockTeam);
+
+      render(<TeamAdminSettings teamId={MOCK_IDS.TEAM_1} />, {
+        wrapper: createWrapper(),
+      });
+
+      await screen.findByText("Administration de l'équipe");
+      expect(screen.queryByLabelText("Matricule")).not.toBeInTheDocument();
+    });
+
+    it("hides the matricule for a supervisor", async () => {
+      (useSession as jest.Mock).mockReturnValue({
+        data: { user: { id: MOCK_IDS.USER_1, role: USER_ROLES.SUPERVISOR } },
+      });
+      mockQueriesWithTeam(fsTeam);
+
+      render(<TeamAdminSettings teamId={MOCK_IDS.TEAM_1} />, {
+        wrapper: createWrapper(),
+      });
+
+      await screen.findByText("Administration de l'équipe");
+      expect(screen.queryByLabelText("Matricule")).not.toBeInTheDocument();
+    });
+
+    it("sends the edited matricule on submit", async () => {
+      const mockMutateAsync = jest.fn().mockResolvedValue(fsTeam);
+      (useMutation as jest.Mock).mockReturnValue({
+        mutateAsync: mockMutateAsync,
+        isPending: false,
+      });
+      mockQueriesWithTeam({ ...fsTeam, registrationNumber: null });
+      const user = userEvent.setup();
+
+      render(<TeamAdminSettings teamId={MOCK_IDS.TEAM_1} />, {
+        wrapper: createWrapper(),
+      });
+
+      await user.type(await screen.findByLabelText("Matricule"), "67890");
+      await user.click(screen.getByText("Enregistrer les modifications"));
+
+      await waitFor(() => {
+        expect(mockMutateAsync).toHaveBeenCalledWith(
+          expect.objectContaining({ registrationNumber: "67890" }),
+        );
+      });
+    });
+
+    it("requires the matricule for a France Services team", async () => {
+      const mockMutateAsync = jest.fn();
+      (useMutation as jest.Mock).mockReturnValue({
+        mutateAsync: mockMutateAsync,
+        isPending: false,
+      });
+      mockQueriesWithTeam({ ...fsTeam, registrationNumber: null });
+
+      render(<TeamAdminSettings teamId={MOCK_IDS.TEAM_1} />, {
+        wrapper: createWrapper(),
+      });
+
+      await screen.findByLabelText("Matricule");
+      fireEvent.click(screen.getByText("Enregistrer les modifications"));
+
+      expect(
+        await screen.findByText(
+          "Le matricule est obligatoire pour France Services.",
+        ),
+      ).toBeInTheDocument();
+      expect(mockMutateAsync).not.toHaveBeenCalled();
+    });
+
+    it("rejects a matricule that is not made of digits", async () => {
+      const mockMutateAsync = jest.fn();
+      (useMutation as jest.Mock).mockReturnValue({
+        mutateAsync: mockMutateAsync,
+        isPending: false,
+      });
+      mockQueriesWithTeam(fsTeam);
+
+      render(<TeamAdminSettings teamId={MOCK_IDS.TEAM_1} />, {
+        wrapper: createWrapper(),
+      });
+
+      fireEvent.change(await screen.findByLabelText("Matricule"), {
+        target: { value: "ab" },
+      });
+      fireEvent.click(screen.getByText("Enregistrer les modifications"));
+
+      expect(
+        await screen.findByText(
+          "Le matricule ne doit contenir que des chiffres (6 au maximum).",
+        ),
+      ).toBeInTheDocument();
+      expect(mockMutateAsync).not.toHaveBeenCalled();
+    });
+
+    it("shows the duplicate matricule error on the field", async () => {
+      const message =
+        "Ce matricule correspond à une équipe qui existe déjà sur Administration+. Veuillez saisir un autre matricule.";
+      (useMutation as jest.Mock).mockImplementation((options) => {
+        const key = JSON.stringify(options?.mutationKey || []);
+        return {
+          mutateAsync: jest.fn().mockImplementation(async () => {
+            if (key.includes("updateTeamAdmin")) {
+              const error = new Error(message);
+              options?.onError?.(error);
+              throw error;
+            }
+          }),
+          isPending: false,
+        };
+      });
+      mockQueriesWithTeam(fsTeam);
+
+      render(<TeamAdminSettings teamId={MOCK_IDS.TEAM_1} />, {
+        wrapper: createWrapper(),
+      });
+
+      await screen.findByLabelText("Matricule");
+      fireEvent.click(screen.getByText("Enregistrer les modifications"));
+
+      expect(await screen.findByText(message)).toBeInTheDocument();
     });
   });
 

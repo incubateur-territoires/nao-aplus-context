@@ -74,6 +74,10 @@ describe("pseudonymizeReportContent", () => {
 
     expect(attempt.outcome).toBe("REFUSED");
     expect(attempt.content).toBeUndefined();
+    expect(attempt.refusal).toEqual({
+      kind: "GUARD",
+      violationCounts: { RESIDUAL: 1 },
+    });
   });
 
   it("classe un quota épuisé en panne", async () => {
@@ -90,6 +94,7 @@ describe("pseudonymizeReportContent", () => {
     const attempt = await pseudonymizeReportContent("r", report());
 
     expect(attempt.outcome).toBe("REFUSED");
+    expect(attempt.refusal).toEqual({ kind: "PROVIDER", providerStatus: 400 });
   });
 
   it("classe un 401 en panne", async () => {

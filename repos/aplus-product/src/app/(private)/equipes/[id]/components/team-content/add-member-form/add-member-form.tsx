@@ -35,7 +35,9 @@ export function AddMemberForm({
   const [error, setError] = useState<string | null>(null);
   const [serverError, setServerError] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
-  const { mutateAsync: addUserToTeam, isPending: isAddingUsers } = useMutation(
+  // `mutate` et non `mutateAsync` : une mutation en échec est rendue par
+  // `onError`, sans rejet à intercepter qui ferait tomber la page entière.
+  const { mutate: addUserToTeam, isPending: isAddingUsers } = useMutation(
     trpc.team.addUserToTeam.mutationOptions({
       onSuccess: async (_data, variables) => {
         await queryClient.refetchQueries(
@@ -128,9 +130,9 @@ export function AddMemberForm({
     );
   }
 
-  async function handleConfirmAddMembers() {
+  function handleConfirmAddMembers() {
     setServerError(null);
-    await addUserToTeam({ teamId, users: pendingMembers });
+    addUserToTeam({ teamId, users: pendingMembers });
   }
 
   return (

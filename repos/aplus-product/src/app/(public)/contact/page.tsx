@@ -179,7 +179,7 @@ export default async function ContactPage() {
               <div className="p-4 md:p-20 bg-white mt-8">
                 <Alert
                   severity="info"
-                  title="Échangez avec l'équipe d'A+ par tchat de 11h à 12h"
+                  title="Échangez avec l'équipe d'A+"
                   description={
                     <>
                       <p className="mb-8">

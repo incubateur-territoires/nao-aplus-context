@@ -25,12 +25,16 @@ import { SiteBanner } from "./component/site-banner/site-banner";
 import { TwoFactorGuard } from "./component/two-factor-guard/two-factor-guard";
 import { ProfileCompletionGuard } from "./component/profile-completion-guard/profile-completion-guard";
 import { NoTeamGuard } from "./component/no-team-guard/no-team-guard";
+import { CguAcceptanceGuard } from "./component/cgu-acceptance-guard/cgu-acceptance-guard";
 import { Suspense } from "react";
 import type { Metadata } from "next";
 import { ZammadChat } from "./component/zammad-chat/zammad-chat";
 import prisma from "@/lib/prisma";
 import { MaintenancePage } from "./maintenance";
 import { MatomoAnalytics } from "./services/matomo/matomo.client";
+import { CommandPalette } from "./component/command-palette/command-palette";
+import { getCurrentUserRole } from "@/utils/auth-server";
+import { USER_ROLES } from "@/constants/user-roles";
 
 export const dynamic = "force-dynamic";
 
@@ -57,6 +61,7 @@ export default async function RootLayout({
   }
 
   const lang = "fr";
+  const isAdmin = (await getCurrentUserRole()) === USER_ROLES.ADMIN;
 
   const IS_DEV = process.env.NODE_ENV === "development";
   const SHOW_EMAIL_DEBUG =
@@ -152,21 +157,23 @@ export default async function RootLayout({
                   <ImpersonationBanner />
                   <ProfileCompletionGuard>
                     <TwoFactorGuard>
-                      <NoTeamGuard>
-                        <main
-                          id="content"
-                          role="main"
-                          style={{
-                            display: "flex",
-                            flexDirection: "column",
-                            fontWeight: "normal",
-                            height: "100%",
-                          }}
-                        >
-                          <SiteBanner />
-                          {children}
-                        </main>
-                      </NoTeamGuard>
+                      <CguAcceptanceGuard>
+                        <NoTeamGuard>
+                          <main
+                            id="content"
+                            role="main"
+                            style={{
+                              display: "flex",
+                              flexDirection: "column",
+                              fontWeight: "normal",
+                              height: "100%",
+                            }}
+                          >
+                            <SiteBanner />
+                            {children}
+                          </main>
+                        </NoTeamGuard>
+                      </CguAcceptanceGuard>
                     </TwoFactorGuard>
                   </ProfileCompletionGuard>
                   {process.env.NEXT_PUBLIC_ENABLE_DEBUG_TOOLS === "true" ? (
@@ -174,6 +181,7 @@ export default async function RootLayout({
                       <DevToolsWidget showEmailDebug={SHOW_EMAIL_DEBUG} />
                     </Suspense>
                   ) : null}
+                  {isAdmin ? <CommandPalette /> : null}
                   <ZammadChat />
                   <Suspense fallback={null}>
                     <MatomoAnalytics />

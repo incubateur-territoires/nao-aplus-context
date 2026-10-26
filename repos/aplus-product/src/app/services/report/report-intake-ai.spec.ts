@@ -1,4 +1,5 @@
 import { APICallError } from "ai";
+import { Prisma } from "@/generated/prisma/client";
 import { pseudonymizeMissingPieces } from "./pseudonymized-report";
 import { pseudonymizeAndTagNewReport } from "./report-intake-ai";
 import {
@@ -100,15 +101,23 @@ describe("pseudonymizeAndTagNewReport", () => {
   });
 
   it("consigne un refus et n'étiquette pas", async () => {
-    pseudonymize.mockResolvedValue({ outcome: "REFUSED" });
+    pseudonymize.mockResolvedValue({
+      outcome: "REFUSED",
+      refusal: { kind: "PROVIDER", providerStatus: 413 },
+    });
     const prisma = createMockPrisma();
 
     await pseudonymizeAndTagNewReport(prisma as never, "r1");
 
+    const reason = {
+      kind: "PROVIDER",
+      violationCounts: Prisma.DbNull,
+      providerStatus: 413,
+    };
     expect(prisma.reportPseudonymizationRefusal.upsert).toHaveBeenCalledWith({
       where: { reportId: "r1" },
-      create: { reportId: "r1", refusedAt: expect.any(Date) },
-      update: { refusedAt: expect.any(Date) },
+      create: { reportId: "r1", refusedAt: expect.any(Date), ...reason },
+      update: { refusedAt: expect.any(Date), ...reason },
     });
     expect(tag).not.toHaveBeenCalled();
   });

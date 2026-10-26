@@ -87,6 +87,11 @@ export function NavigationClient({
                     ),
                   },
                   {
+                    text: "Étiquetage IA",
+                    linkProps: { href: ROUTE.ADMIN_TAGGING },
+                    isActive: isNavItemActive(fullPath, ROUTE.ADMIN_TAGGING),
+                  },
+                  {
                     text: "CRM",
                     linkProps: { href: ROUTE.CONTACTS },
                     isActive: isNavItemActive(fullPath, ROUTE.CONTACTS),

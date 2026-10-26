@@ -53,6 +53,8 @@ Un titre H1, un paragraphe de comportement visible, puis exactement quatre H2 : 
 - [Statistiques publiques](./stats-public.md) — tableau de bord public, filtres, export par graphique.
 - [Golden dataset](./golden-dataset.md) — annotation du corpus, restitution, accord entre annotateurs, adjudication des tags de référence.
 - [Signalements anonymisés](./anonymized-reports.md) — page admin en lecture seule : textes pseudonymisés, étiquettes démarche et blocage, filtres.
+- [Étiquetage IA](./tagging-stats.md) — page admin en lecture seule : répartition des étiquettes IA, votes des destinataires, graphiques.
+- [Recherche rapide (⌘K)](./command-palette.md) — modale admin : signalements par objet ou auteur, utilisateurs, équipes, pages, identifiant collé.
 - [Contacts (mini-CRM)](./crm-contacts.md) — annuaire admin de correspondants, envoi d'e-mail, réception des réponses par webhook.
 
 ## État de vérification
@@ -65,6 +67,7 @@ Un titre H1, un paragraphe de comportement visible, puis exactement quatre H2 : 
 - `profile-self` (`profession` modifiée en base puis restaurée)
 - `teams-detail` et sa garde d'accès : refus confirmé pour un superviseur non membre d'une équipe hors périmètre, fiche complète une fois membre (rattachement de test posé puis retiré par SQL ; preuves dans `../evidence/`)
 - affichage des pages équipes, utilisateurs, statistiques et profil
+- `cmdk-open`, `cmdk-search`, `cmdk-id`, `cmdk-recents`, `cmdk-guard` ([command-palette](./command-palette.md), preuves dans `../evidence/`)
 
 - `create-open`, `create-validation`, `create-step1` à `create-step4`, `create-submit` : création complète d'un signalement, du territoire à l'envoi, avec la ligne retrouvée en base (`PENDING_ASSIGNMENT`, sujet conforme, `authorId` = compte pilote)
 

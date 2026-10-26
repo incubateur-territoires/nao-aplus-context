@@ -189,6 +189,71 @@ describe("userRouter", () => {
     });
   });
 
+  describe("getCguStatus", () => {
+    it("demande l'acceptation quand les CGU acceptées précèdent la version en vigueur", async () => {
+      (prisma.user.findUnique as jest.Mock).mockResolvedValue({
+        cguAcceptedAt: MOCK_DATES.JAN_1_2024,
+      });
+
+      const caller = createCaller({
+        userId: MOCK_IDS.USER_2,
+        user: createMockUser({ id: MOCK_IDS.USER_2 }),
+        impersonatedBy: null,
+      });
+
+      await expect(caller.getCguStatus()).resolves.toEqual({
+        mustAccept: true,
+      });
+    });
+
+    it("ne demande rien pendant une impersonation", async () => {
+      (prisma.user.findUnique as jest.Mock).mockResolvedValue({
+        cguAcceptedAt: null,
+      });
+
+      const caller = createCaller({
+        userId: MOCK_IDS.USER_2,
+        user: createMockUser({ id: MOCK_IDS.USER_2 }),
+        impersonatedBy: MOCK_IDS.USER_1,
+      });
+
+      await expect(caller.getCguStatus()).resolves.toEqual({
+        mustAccept: false,
+      });
+    });
+  });
+
+  describe("acceptCgu", () => {
+    it("enregistre la date d'acceptation pour l'utilisateur connecté", async () => {
+      (prisma.user.update as jest.Mock).mockResolvedValue({});
+
+      const caller = createCaller({
+        userId: MOCK_IDS.USER_2,
+        user: createMockUser({ id: MOCK_IDS.USER_2 }),
+        impersonatedBy: null,
+      });
+
+      await expect(caller.acceptCgu()).resolves.toEqual({ success: true });
+      expect(prisma.user.update).toHaveBeenCalledWith({
+        where: { id: MOCK_IDS.USER_2 },
+        data: { cguAcceptedAt: expect.any(Date) },
+      });
+    });
+
+    it("refuse d'accepter les CGU au nom d'un utilisateur impersonné", async () => {
+      const caller = createCaller({
+        userId: MOCK_IDS.USER_2,
+        user: createMockUser({ id: MOCK_IDS.USER_2 }),
+        impersonatedBy: MOCK_IDS.USER_1,
+      });
+
+      await expect(caller.acceptCgu()).rejects.toMatchObject({
+        code: "FORBIDDEN",
+      });
+      expect(prisma.user.update).not.toHaveBeenCalled();
+    });
+  });
+
   describe("deactivateUser", () => {
     it("throws UNAUTHORIZED when user is not logged in", async () => {
       const caller = createCaller({
@@ -1825,6 +1890,43 @@ describe("userRouter", () => {
         }
       ).data.notificationsViewedBefore;
       expect(notificationsViewedBefore.getTime()).toBeGreaterThanOrEqual(
+        beforeTest.getTime(),
+      );
+    });
+
+    it("restarts the inactivity cycle so the next cron run does not deactivate the account again", async () => {
+      const beforeTest = new Date();
+
+      (prisma.user.findUnique as jest.Mock).mockResolvedValueOnce({
+        ...mockTargetUser,
+        isInactive: MOCK_DATES.JAN_1_2024,
+      });
+
+      (
+        prisma.deactivatedUserTeamSnapshot.findUnique as jest.Mock
+      ).mockResolvedValue(mockSnapshot);
+
+      (prisma.$transaction as jest.Mock).mockResolvedValue([{}, {}]);
+
+      const caller = createCaller({
+        userId: MOCK_IDS.USER_1,
+        user: createMockUser({ role: USER_ROLES.ADMIN }),
+      });
+
+      await caller.reactivateUser({ userId: MOCK_IDS.USER_2 });
+
+      const updateCall = (prisma.user.update as jest.Mock).mock.calls.find(
+        (call: unknown[]) =>
+          (call[0] as { data?: { isInactive?: null } })?.data?.isInactive ===
+          null,
+      );
+      const data = (
+        updateCall![0] as {
+          data: { lastActivityAt: Date; inactivityWarningsSentAt: Date[] };
+        }
+      ).data;
+      expect(data.inactivityWarningsSentAt).toEqual([]);
+      expect(data.lastActivityAt.getTime()).toBeGreaterThanOrEqual(
         beforeTest.getTime(),
       );
     });

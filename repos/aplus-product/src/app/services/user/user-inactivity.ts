@@ -9,6 +9,8 @@ import {
 import { findMostActiveTeamMember } from "@/utils/report";
 import { revokeUserSessions } from "@/utils/auth-server";
 import { createLogger } from "@/utils/logger";
+import { trackEventWithContext } from "@/lib/analytics/server-analytics";
+import { ANALYTICS_EVENTS, DEACTIVATION_TRIGGERS } from "@/types/analytics";
 
 const logger = createLogger("Inactivity CRON");
 
@@ -217,8 +219,13 @@ async function deactivateUserForInactivity(
   await prisma.$transaction(transactionOperations);
 
   // Les sessions vivent dans Redis (secondaryStorage) : sans cette
-  // révocation, le compte désactivé garderait un accès jusqu'à 7 jours.
+  // révocation, le compte désactivé garderait un accès jusqu'à 14 h.
   await revokeUserSessions(user.id);
+
+  await trackEventWithContext(ANALYTICS_EVENTS.USER_DEACTIVATED, null, {
+    targetUserId: user.id,
+    trigger: DEACTIVATION_TRIGGERS.INACTIVITY_CRON,
+  });
 }
 
 /**

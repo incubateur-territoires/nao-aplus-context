@@ -54,7 +54,12 @@ export async function pseudonymizeAndTagNewReport(
 
     const attempt = await pseudonymizeMissingPieces(prisma, reportId, report);
     if (attempt.outcome === PSEUDONYMIZATION_OUTCOMES.REFUSED) {
-      await recordPseudonymizationRefusal(prisma, reportId, new Date());
+      await recordPseudonymizationRefusal(
+        prisma,
+        reportId,
+        new Date(),
+        attempt.refusal,
+      );
       return;
     }
     if (attempt.outcome === PSEUDONYMIZATION_OUTCOMES.DONE) {

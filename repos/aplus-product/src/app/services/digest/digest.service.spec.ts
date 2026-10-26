@@ -1,6 +1,25 @@
+import type { PrismaClient } from "@/generated/prisma/client";
 import { NotificationFrequency } from "@/generated/prisma/enums";
-import { shouldReceiveDigestNow } from "./digest.service";
+import {
+  processDigestForAllUsers,
+  shouldReceiveDigestNow,
+} from "./digest.service";
 import type { UserDigestEligibility } from "./digest.types";
+
+const mockSendTemplatedEmail = jest.fn();
+jest.mock("@/app/services/email/email.service", () => ({
+  sendTemplatedEmail: (...args: unknown[]) => mockSendTemplatedEmail(...args),
+}));
+
+const mockGetEligibleUsers = jest.fn();
+const mockGetUnviewedContent = jest.fn();
+jest.mock("./digest.queries", () => ({
+  getEligibleUsersForDigest: (...args: unknown[]) =>
+    mockGetEligibleUsers(...args),
+  getUnviewedContentForUser: (...args: unknown[]) =>
+    mockGetUnviewedContent(...args),
+  updateLastDigestSentAt: jest.fn(),
+}));
 
 describe("digest.service", () => {
   describe("shouldReceiveDigestNow", () => {
@@ -142,6 +161,45 @@ describe("digest.service", () => {
         const nowAt10hUTC = new Date("2024-01-15T10:00:00Z");
         expect(shouldReceiveDigestNow(user, nowAt10hUTC)).toBe(true);
       });
+    });
+  });
+
+  describe("processDigestForAllUsers", () => {
+    const originalAppUrl = process.env.NEXT_PUBLIC_APP_URL;
+
+    afterEach(() => {
+      process.env.NEXT_PUBLIC_APP_URL = originalAppUrl;
+    });
+
+    it("links the email to the reports list of the current environment", async () => {
+      process.env.NEXT_PUBLIC_APP_URL = "https://staging.exemple.test";
+      mockGetEligibleUsers.mockResolvedValue([
+        {
+          userId: "user-1",
+          email: "aidant@exemple.test",
+          firstName: "Aidant",
+          timezone: "Europe/Paris",
+          lastDigestSentAt: null,
+          notificationFrequency: NotificationFrequency.TWICE_DAILY,
+        },
+      ]);
+      mockGetUnviewedContent.mockResolvedValue({
+        unviewedReportsCount: 1,
+        unviewedAnswersCount: 0,
+        unviewedStatusChangesCount: 0,
+      });
+      mockSendTemplatedEmail.mockResolvedValue({ success: true });
+
+      await processDigestForAllUsers({} as PrismaClient, { force: true });
+
+      expect(mockSendTemplatedEmail).toHaveBeenCalledWith(
+        "DIGEST",
+        expect.objectContaining({
+          params: expect.objectContaining({
+            linkUrl: "https://staging.exemple.test/tous-les-signalements",
+          }),
+        }),
+      );
     });
   });
 });

@@ -143,7 +143,12 @@ async function pseudonymizePhase(
 
         if (attempt.outcome === PSEUDONYMIZATION_OUTCOMES.REFUSED) {
           result.refused += 1;
-          await recordPseudonymizationRefusal(prisma, report.id, now);
+          await recordPseudonymizationRefusal(
+            prisma,
+            report.id,
+            now,
+            attempt.refusal,
+          );
           return;
         }
         if (attempt.outcome === PSEUDONYMIZATION_OUTCOMES.DONE) {

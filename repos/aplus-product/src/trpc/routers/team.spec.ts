@@ -17,6 +17,36 @@ import {
   checkTeamAccess,
   checkTeamModifyAccess,
 } from "../middleware/authorization";
+import { sendTemplatedEmail } from "@/app/services/email/email.service";
+
+// Jest résout `@/generated/prisma/client` vers le build navigateur, qui n'expose
+// pas `PrismaClientKnownRequestError` : on en fournit un équivalent minimal.
+jest.mock("@/generated/prisma/client", () => {
+  class MockKnownRequestError extends Error {
+    code: string;
+
+    constructor(code: string) {
+      super(code);
+      this.code = code;
+    }
+  }
+
+  return { Prisma: { PrismaClientKnownRequestError: MockKnownRequestError } };
+});
+
+const { Prisma } = jest.requireMock("@/generated/prisma/client") as {
+  Prisma: { PrismaClientKnownRequestError: new (code: string) => Error };
+};
+
+// Le limiteur compterait les mutations de tout le fichier sous un même utilisateur.
+jest.mock("@/lib/rate-limit", () => ({
+  ...jest.requireActual("@/lib/rate-limit"),
+  checkRateLimit: async () => ({
+    allowed: true,
+    remaining: 1,
+    retryAfterSeconds: 0,
+  }),
+}));
 
 jest.mock("../middleware/authorization", () => ({
   checkApplicantTeamAccess: jest.fn(),
@@ -37,6 +67,11 @@ jest.mock("@/lib/auth", () => ({
       getSession: jest.fn(),
     },
   },
+}));
+
+// Les e-mails partent réellement, sans garde d’environnement.
+jest.mock("@/app/services/email/email.service", () => ({
+  sendTemplatedEmail: jest.fn().mockResolvedValue({ success: true }),
 }));
 
 jest.mock("@/lib/prisma", () => ({
@@ -86,12 +121,6 @@ jest.mock("@/utils/role", () => ({
   userIsManager: jest.fn(() => Promise.resolve(false)),
 }));
 
-jest.mock("@/utils/verification-token", () => ({
-  createVerificationToken: jest
-    .fn()
-    .mockResolvedValue("mock-verification-token"),
-}));
-
 const createCaller = createCallerFactory(teamRouter);
 
 const mockTeam1 = {
@@ -99,7 +128,7 @@ const mockTeam1 = {
   name: "Team Alpha",
   email: "alpha@example.com",
   description: "First team",
-  registrationNumber: "REG-001",
+  registrationNumber: "1001",
   adminComment: null,
   role: OrganizationRole.HELPER,
   organizationId: MOCK_IDS.ORG_1,
@@ -112,7 +141,7 @@ const mockTeam2 = {
   name: "Team Beta",
   email: "beta@example.com",
   description: "Second team",
-  registrationNumber: "REG-002",
+  registrationNumber: "1002",
   adminComment: null,
   role: OrganizationRole.OPERATOR,
   organizationId: MOCK_IDS.ORG_1,
@@ -199,10 +228,6 @@ describe("teamRouter", () => {
               role: true,
               profession: true,
               isInactive: true,
-              // seules les dates servent (dernière activité) : jamais les
-              // lignes Report complètes des membres
-              authoredReports: { select: { createdAt: true } },
-              coAuthoredReports: { select: { createdAt: true } },
             },
           },
           pendingManagers: { select: { id: true } },
@@ -806,6 +831,54 @@ describe("teamRouter", () => {
       expect(prisma.$transaction).toHaveBeenCalled();
       expect(result).toHaveProperty("createdPendingUsers");
     });
+
+    it("n'expose pas le jeton d'invitation dans la réponse", async () => {
+      // Le jeton est la seule preuve de possession de la boîte à l'inscription.
+      // Le renvoyer permettrait à l'appelant de créer le compte de l'invité.
+      const pendingUser = {
+        id: "pending-user-1",
+        email: "newuser@example.com",
+        verificationToken: "jeton-secret",
+        tokenExpiresAt: MOCK_DATES.JUN_24_2025,
+      };
+
+      (prisma.$transaction as jest.Mock).mockImplementation(
+        async (callback) => {
+          const tx = {
+            user: {
+              findMany: jest.fn().mockResolvedValue([]),
+            },
+            pendingUser: {
+              upsert: jest.fn().mockResolvedValue(pendingUser),
+            },
+          };
+          return callback(tx);
+        },
+      );
+
+      const caller = createCaller({
+        userId: MOCK_IDS.USER_1,
+        user: createMockUser(),
+      });
+
+      const result = await caller.addUserToTeam({
+        teamId: MOCK_IDS.TEAM_1,
+        users: [{ email: "newuser@example.com", isManager: false }],
+      });
+
+      expect(result.createdPendingUsers).toEqual([
+        { id: "pending-user-1", email: "newuser@example.com" },
+      ]);
+      expect(JSON.stringify(result)).not.toContain("jeton-secret");
+
+      // Le jeton reste disponible côté serveur : seul l'e-mail le porte.
+      expect(sendTemplatedEmail).toHaveBeenCalledWith(
+        "CONFIRM_ACCOUNT",
+        expect.objectContaining({
+          params: { linkUrl: expect.stringContaining("jeton-secret") },
+        }),
+      );
+    });
   });
 
   describe("removeUserFromTeam", () => {
@@ -1033,7 +1106,7 @@ describe("teamRouter", () => {
         areaIds: [MOCK_IDS.AREA_1],
         email: "new@example.com",
         description: "New description",
-        registrationNumber: "REG-NEW",
+        registrationNumber: "4242",
       });
 
       expect(result).toEqual(mockTeam1);
@@ -1042,7 +1115,7 @@ describe("teamRouter", () => {
           name: "New Team",
           email: "new@example.com",
           description: "New description",
-          registrationNumber: "REG-NEW",
+          registrationNumber: "4242",
           role: OrganizationRole.HELPER,
           type: TeamType.OTHERS_HELPERS,
           createdBy: { connect: { id: MOCK_IDS.USER_1 } },
@@ -1078,7 +1151,7 @@ describe("teamRouter", () => {
         areaIds: [MOCK_IDS.AREA_1],
         email: "new@example.com",
         description: "New description",
-        registrationNumber: "REG-NEW",
+        registrationNumber: "4242",
       });
 
       expect(result).toEqual(mockTeam1);
@@ -1087,7 +1160,7 @@ describe("teamRouter", () => {
           name: "New Team",
           email: "new@example.com",
           description: "New description",
-          registrationNumber: "REG-NEW",
+          registrationNumber: "4242",
           role: OrganizationRole.HELPER,
           type: TeamType.OTHERS_HELPERS,
           createdBy: { connect: { id: MOCK_IDS.USER_1 } },
@@ -1294,6 +1367,7 @@ describe("teamRouter", () => {
         name: "New Team",
         organizationId: MOCK_IDS.ORG_1,
         areaIds: [MOCK_IDS.AREA_1],
+        registrationNumber: "4242",
         type: TeamType.TZNR,
       });
 
@@ -1322,11 +1396,52 @@ describe("teamRouter", () => {
           name: "New Team",
           organizationId: MOCK_IDS.ORG_1,
           areaIds: [MOCK_IDS.AREA_1],
-          registrationNumber: "REG-001",
+          registrationNumber: "1001",
         }),
       ).rejects.toThrow(
         "Ce matricule correspond à une équipe qui existe déjà sur Administration+. Veuillez saisir un autre matricule.",
       );
+    });
+
+    it("refuses a France Services team without registration number", async () => {
+      (prisma.organization.findUniqueOrThrow as jest.Mock).mockResolvedValue({
+        type: TeamType.FRANCE_SERVICE,
+        role: OrganizationRole.HELPER,
+      });
+
+      const caller = createCaller({
+        userId: MOCK_IDS.USER_1,
+        user: createMockUser({ role: USER_ROLES.ADMIN }),
+      });
+
+      await expect(
+        caller.createTeam({
+          name: "New Team",
+          organizationId: MOCK_IDS.ORG_1,
+          areaIds: [MOCK_IDS.AREA_1],
+        }),
+      ).rejects.toMatchObject({
+        code: "BAD_REQUEST",
+        message: "Le matricule est obligatoire pour France Services.",
+      });
+      expect(prisma.team.create).not.toHaveBeenCalled();
+    });
+
+    it("rejects a registration number that is not made of digits", async () => {
+      const caller = createCaller({
+        userId: MOCK_IDS.USER_1,
+        user: createMockUser({ role: USER_ROLES.ADMIN }),
+      });
+
+      await expect(
+        caller.createTeam({
+          name: "New Team",
+          organizationId: MOCK_IDS.ORG_1,
+          areaIds: [MOCK_IDS.AREA_1],
+          registrationNumber: "ab",
+        }),
+      ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+      expect(prisma.team.create).not.toHaveBeenCalled();
     });
   });
 
@@ -1351,6 +1466,9 @@ describe("teamRouter", () => {
       (prisma.organization.findUnique as jest.Mock).mockResolvedValue(
         mockOrganization,
       );
+      (prisma.team.findUnique as jest.Mock).mockResolvedValue({
+        registrationNumber: "1001",
+      });
       (prisma.team.update as jest.Mock).mockResolvedValue(mockTeam1);
 
       const caller = createCaller({
@@ -1376,6 +1494,137 @@ describe("teamRouter", () => {
           type: TeamType.FRANCE_SERVICE,
         },
       });
+    });
+    it("refuses to attach a team without registration number to France Services", async () => {
+      (prisma.organization.findUnique as jest.Mock).mockResolvedValue(
+        mockOrganization,
+      );
+      (prisma.team.findUnique as jest.Mock).mockResolvedValue({
+        registrationNumber: null,
+      });
+
+      const caller = createCaller({
+        userId: MOCK_IDS.USER_1,
+        user: createMockUser({ role: USER_ROLES.ADMIN }),
+      });
+
+      await expect(
+        caller.updateTeamAdmin({
+          id: MOCK_IDS.TEAM_1,
+          areaIds: [MOCK_IDS.AREA_1],
+          organizationId: MOCK_IDS.ORG_1,
+        }),
+      ).rejects.toMatchObject({
+        code: "BAD_REQUEST",
+        message: "Le matricule est obligatoire pour France Services.",
+      });
+      expect(prisma.team.update).not.toHaveBeenCalled();
+    });
+
+    it("updates the registration number when it is free", async () => {
+      (prisma.team.findFirst as jest.Mock).mockResolvedValue(null);
+      (prisma.team.update as jest.Mock).mockResolvedValue(mockTeam1);
+
+      const caller = createCaller({
+        userId: MOCK_IDS.USER_1,
+        user: createMockUser({ role: USER_ROLES.ADMIN }),
+      });
+
+      await caller.updateTeamAdmin({
+        id: MOCK_IDS.TEAM_1,
+        areaIds: [MOCK_IDS.AREA_1],
+        registrationNumber: " 12345 ",
+      });
+
+      expect(prisma.team.findFirst).toHaveBeenCalledWith({
+        where: {
+          registrationNumber: "12345",
+          deletedAt: null,
+          id: { not: MOCK_IDS.TEAM_1 },
+        },
+      });
+      expect(prisma.team.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ registrationNumber: "12345" }),
+        }),
+      );
+    });
+
+    it("rejects a registration number used by another team", async () => {
+      (prisma.team.findFirst as jest.Mock).mockResolvedValue(mockTeam2);
+
+      const caller = createCaller({
+        userId: MOCK_IDS.USER_1,
+        user: createMockUser({ role: USER_ROLES.ADMIN }),
+      });
+
+      await expect(
+        caller.updateTeamAdmin({
+          id: MOCK_IDS.TEAM_1,
+          areaIds: [MOCK_IDS.AREA_1],
+          registrationNumber: "12345",
+        }),
+      ).rejects.toMatchObject({ code: "CONFLICT" });
+      expect(prisma.team.update).not.toHaveBeenCalled();
+    });
+
+    it.each(["   ", "ab", "1234567"])(
+      "rejects the registration number « %s »",
+      async (registrationNumber) => {
+        const caller = createCaller({
+          userId: MOCK_IDS.USER_1,
+          user: createMockUser({ role: USER_ROLES.ADMIN }),
+        });
+
+        await expect(
+          caller.updateTeamAdmin({
+            id: MOCK_IDS.TEAM_1,
+            areaIds: [MOCK_IDS.AREA_1],
+            registrationNumber,
+          }),
+        ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+        expect(prisma.team.update).not.toHaveBeenCalled();
+      },
+    );
+
+    it("turns a unique constraint hit during the update into a conflict", async () => {
+      (prisma.team.findFirst as jest.Mock).mockResolvedValue(null);
+      (prisma.team.update as jest.Mock).mockRejectedValue(
+        new Prisma.PrismaClientKnownRequestError("P2002"),
+      );
+
+      const caller = createCaller({
+        userId: MOCK_IDS.USER_1,
+        user: createMockUser({ role: USER_ROLES.ADMIN }),
+      });
+
+      await expect(
+        caller.updateTeamAdmin({
+          id: MOCK_IDS.TEAM_1,
+          areaIds: [MOCK_IDS.AREA_1],
+          registrationNumber: "12345",
+        }),
+      ).rejects.toMatchObject({
+        code: "CONFLICT",
+        message: expect.stringContaining("Ce matricule"),
+      });
+    });
+
+    it("leaves the registration number untouched when not provided", async () => {
+      (prisma.team.update as jest.Mock).mockResolvedValue(mockTeam1);
+
+      const caller = createCaller({
+        userId: MOCK_IDS.USER_1,
+        user: createMockUser({ role: USER_ROLES.ADMIN }),
+      });
+
+      await caller.updateTeamAdmin({
+        id: MOCK_IDS.TEAM_1,
+        areaIds: [MOCK_IDS.AREA_1],
+      });
+
+      const { data } = (prisma.team.update as jest.Mock).mock.calls[0][0];
+      expect(data).not.toHaveProperty("registrationNumber");
     });
   });
 

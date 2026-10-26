@@ -178,6 +178,35 @@ describe("reportRouter", () => {
         }),
       );
     });
+
+    it("filters by author or resolved co-authored ids, without a coAuthors subquery", async () => {
+      (prisma.report.findMany as jest.Mock).mockResolvedValue([]);
+      (prisma.user.findUnique as jest.Mock).mockResolvedValue({
+        coAuthoredReports: [{ id: MOCK_IDS.REPORT_2 }],
+      });
+
+      const caller = createCaller({
+        userId: MOCK_IDS.USER_1,
+        user: createMockUser({ role: USER_ROLES.USER }),
+      });
+
+      await caller.getMyCreatedReportsTable();
+
+      expect(prisma.report.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: {
+            AND: expect.arrayContaining([
+              {
+                OR: [
+                  { authorId: MOCK_IDS.USER_1 },
+                  { id: { in: [MOCK_IDS.REPORT_2] } },
+                ],
+              },
+            ]),
+          },
+        }),
+      );
+    });
   });
 
   describe("getMyRequestedReportsTable", () => {
@@ -457,6 +486,7 @@ describe("reportRouter", () => {
             },
           },
           author: true,
+          pseudonymized: { select: { subject: true, description: true } },
         },
       });
     });

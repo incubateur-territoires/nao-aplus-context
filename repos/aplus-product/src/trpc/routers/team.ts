@@ -15,8 +15,13 @@ import {
   buildTeamSearchConditions,
 } from "@/utils/search";
 import { userIsManager } from "@/utils/role";
-import { createVerificationToken } from "@/utils/verification-token";
+import { createInvitationToken } from "@/utils/verification-token";
 import { normalizeEmail } from "@/utils/normalize";
+import {
+  isValidRegistrationNumber,
+  REGISTRATION_NUMBER_FORMAT_MESSAGE,
+  REGISTRATION_NUMBER_REQUIRED_MESSAGE,
+} from "@/utils/registration-number";
 import { sendTemplatedEmail } from "@/app/services/email/email.service";
 import { ROUTE } from "@/app/constant/route";
 import {
@@ -36,6 +41,14 @@ import {
   getMaskingRole,
   maskReportsForRole,
 } from "@/utils/mask-sensitive-data";
+
+const registrationNumberSchema = z
+  .string()
+  .trim()
+  .refine(isValidRegistrationNumber, REGISTRATION_NUMBER_FORMAT_MESSAGE);
+
+const REGISTRATION_NUMBER_TAKEN =
+  "Ce matricule correspond à une équipe qui existe déjà sur Administration+. Veuillez saisir un autre matricule.";
 
 export const teamRouter = createTRPCRouter({
   getTeams: adminProcedure.query(async () => {
@@ -145,9 +158,8 @@ export const teamRouter = createTRPCRouter({
     .query(async ({ input, ctx }) => {
       await checkTeamAccess(ctx, input);
       // Sélections minimales : les lignes User complètes (téléphone, notes
-      // internes) et surtout les Report complets (données citoyens) des
-      // membres n'ont rien à faire dans la fiche équipe. Seules les dates
-      // de création des signalements servent, pour la dernière activité.
+      // internes) et les signalements des membres (données citoyens) n'ont
+      // rien à faire dans la fiche équipe.
       return prisma.team.findUnique({
         where: { id: input, deletedAt: null },
         include: {
@@ -161,8 +173,6 @@ export const teamRouter = createTRPCRouter({
               role: true,
               profession: true,
               isInactive: true,
-              authoredReports: { select: { createdAt: true } },
-              coAuthoredReports: { select: { createdAt: true } },
             },
           },
           pendingManagers: { select: { id: true } },
@@ -634,11 +644,7 @@ export const teamRouter = createTRPCRouter({
 
         const createdPendingUsers = await Promise.all(
           usersToCreate.map(async (user) => {
-            const verificationToken = await createVerificationToken({
-              email: user.email,
-              firstName: null,
-              lastName: null,
-            });
+            const verificationToken = createInvitationToken();
             // Need to upsert because pending user can be already a pending user ... (removed from team)
             return tx.pendingUser.upsert({
               where: { email: user.email },
@@ -658,6 +664,8 @@ export const teamRouter = createTRPCRouter({
                   ? { connect: { id: input.teamId } }
                   : undefined,
               },
+              // Le jeton ne sert qu’à l’e-mail d’invitation envoyé plus bas.
+              select: { id: true, email: true, verificationToken: true },
             });
           }),
         );
@@ -679,7 +687,18 @@ export const teamRouter = createTRPCRouter({
         }),
       );
 
-      return result;
+      // Le jeton d’invitation est la seule preuve de possession de la boîte à
+      // l’inscription : la réponse ne porte donc que l’identité des comptes.
+      return {
+        updatedUsers: result.updatedUsers.map((user) => ({
+          id: user.id,
+          email: user.email,
+        })),
+        createdPendingUsers: result.createdPendingUsers.map((pendingUser) => ({
+          id: pendingUser.id,
+          email: pendingUser.email,
+        })),
+      };
     }),
   previewRemoveFromTeam: protectedProcedure
     .input(z.object({ teamId: z.string(), userId: z.string() }))
@@ -894,7 +913,7 @@ export const teamRouter = createTRPCRouter({
           .optional()
           .nullable(),
         description: z.string().optional().nullable(),
-        registrationNumber: z.string().optional().nullable(),
+        registrationNumber: registrationNumberSchema.optional().nullable(),
         type: z.nativeEnum(TeamType).optional(),
       }),
     )
@@ -950,8 +969,7 @@ export const teamRouter = createTRPCRouter({
         if (existingTeam) {
           throw new TRPCError({
             code: "CONFLICT",
-            message:
-              "Ce matricule correspond à une équipe qui existe déjà sur Administration+. Veuillez saisir un autre matricule.",
+            message: REGISTRATION_NUMBER_TAKEN,
           });
         }
       }
@@ -961,6 +979,16 @@ export const teamRouter = createTRPCRouter({
         where: { id: input.organizationId },
         select: { type: true, role: true },
       });
+
+      if (
+        organization.type === TeamType.FRANCE_SERVICE &&
+        !input.registrationNumber
+      ) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: REGISTRATION_NUMBER_REQUIRED_MESSAGE,
+        });
+      }
 
       let teamType: TeamType = organization.type;
 
@@ -1049,8 +1077,7 @@ export const teamRouter = createTRPCRouter({
           if (target.includes("registrationNumber")) {
             throw new TRPCError({
               code: "CONFLICT",
-              message:
-                "Ce matricule correspond à une équipe qui existe déjà sur Administration+. Veuillez saisir un autre matricule.",
+              message: REGISTRATION_NUMBER_TAKEN,
             });
           }
           throw new TRPCError({
@@ -1071,10 +1098,28 @@ export const teamRouter = createTRPCRouter({
         organizationId: z.string().optional(),
         adminComment: z.string().optional().nullable(),
         type: z.nativeEnum(TeamType).optional(),
+        // Omis : matricule inchangé. Fourni : il ne peut pas être effacé.
+        registrationNumber: registrationNumberSchema.optional(),
       }),
     )
     .mutation(async ({ input }) => {
       // Admin role is guaranteed by adminProcedure
+      if (input.registrationNumber) {
+        const existingTeam = await prisma.team.findFirst({
+          where: {
+            registrationNumber: input.registrationNumber,
+            deletedAt: null,
+            id: { not: input.id },
+          },
+        });
+        if (existingTeam) {
+          throw new TRPCError({
+            code: "CONFLICT",
+            message: REGISTRATION_NUMBER_TAKEN,
+          });
+        }
+      }
+
       let newRole: OrganizationRole | undefined;
       let teamType: TeamType | undefined = input.type;
 
@@ -1084,6 +1129,22 @@ export const teamRouter = createTRPCRouter({
           where: { id: input.organizationId },
         });
         if (organization) {
+          // Le matricule effectif est le nouveau s'il est fourni, sinon celui en base.
+          if (
+            organization.type === TeamType.FRANCE_SERVICE &&
+            !input.registrationNumber
+          ) {
+            const team = await prisma.team.findUnique({
+              where: { id: input.id },
+              select: { registrationNumber: true },
+            });
+            if (!team?.registrationNumber) {
+              throw new TRPCError({
+                code: "BAD_REQUEST",
+                message: REGISTRATION_NUMBER_REQUIRED_MESSAGE,
+              });
+            }
+          }
           newRole = organization.role;
           // Inherit type from organization (admin can still override via input.type)
           if (!input.type) {
@@ -1092,18 +1153,35 @@ export const teamRouter = createTRPCRouter({
         }
       }
 
-      return prisma.team.update({
-        where: { id: input.id },
-        data: {
-          areas: { set: input.areaIds.map((id) => ({ id })) },
-          ...(input.organizationId && {
-            organization: { connect: { id: input.organizationId } },
-          }),
-          ...(newRole && { role: newRole }),
-          ...(input.adminComment && { adminComment: input.adminComment }),
-          ...(teamType && { type: teamType }),
-        },
-      });
+      try {
+        return await prisma.team.update({
+          where: { id: input.id },
+          data: {
+            areas: { set: input.areaIds.map((id) => ({ id })) },
+            ...(input.organizationId && {
+              organization: { connect: { id: input.organizationId } },
+            }),
+            ...(newRole && { role: newRole }),
+            ...(input.adminComment && { adminComment: input.adminComment }),
+            ...(teamType && { type: teamType }),
+            ...(input.registrationNumber && {
+              registrationNumber: input.registrationNumber,
+            }),
+          },
+        });
+      } catch (error) {
+        // Doublon arrivé entre le contrôle et l'écriture : le matricule est le seul champ unique modifié.
+        if (
+          error instanceof Prisma.PrismaClientKnownRequestError &&
+          error.code === "P2002"
+        ) {
+          throw new TRPCError({
+            code: "CONFLICT",
+            message: REGISTRATION_NUMBER_TAKEN,
+          });
+        }
+        throw error;
+      }
     }),
 
   updateTeamAreas: protectedProcedure

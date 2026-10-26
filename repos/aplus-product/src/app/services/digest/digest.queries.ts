@@ -52,6 +52,20 @@ export async function getEligibleUsersForDigest(
   });
 }
 
+// Un retrait d'équipe laisse la personne autrice des signalements déjà clos :
+// seule l'appartenance à l'équipe autrice ouvre droit au récap.
+function authoredWithinOwnTeam(reportId: Prisma.Sql, userId: string) {
+  return Prisma.sql`EXISTS (
+    SELECT 1 FROM "Report" r
+    INNER JOIN "_TeamToUser" tu ON tu."A" = r."applicantTeamId" AND tu."B" = ${userId}
+    WHERE r.id = ${reportId}
+      AND (
+        r."authorId" = ${userId}
+        OR EXISTS (SELECT 1 FROM "_ReportCoAuthors" rc WHERE rc."A" = r.id AND rc."B" = ${userId})
+      )
+  )`;
+}
+
 export async function getUnviewedContentForUser(
   prisma: PrismaClient,
   userId: string,
@@ -110,8 +124,7 @@ export async function getUnviewedContentForUser(
           )
           ${answerFilter}
           AND (
-            EXISTS (SELECT 1 FROM "Report" r WHERE r.id = a."reportId" AND r."authorId" = ${userId})
-            OR EXISTS (SELECT 1 FROM "_ReportCoAuthors" rc WHERE rc."A" = a."reportId" AND rc."B" = ${userId})
+            ${authoredWithinOwnTeam(Prisma.raw('a."reportId"'), userId)}
             OR EXISTS (
               SELECT 1 FROM "_ReportToRequestedTeams" rt
               INNER JOIN "_TeamToUser" tu ON rt."B" = tu."A"
@@ -134,10 +147,7 @@ export async function getUnviewedContentForUser(
             WHERE r.id = rsh."reportId" AND r."status" <> 'DELETED'
           )
           ${statusFilter}
-          AND (
-            EXISTS (SELECT 1 FROM "Report" r WHERE r.id = rsh."reportId" AND r."authorId" = ${userId})
-            OR EXISTS (SELECT 1 FROM "_ReportCoAuthors" rc WHERE rc."A" = rsh."reportId" AND rc."B" = ${userId})
-          )
+          AND ${authoredWithinOwnTeam(Prisma.raw('rsh."reportId"'), userId)}
           AND NOT EXISTS (
             SELECT 1 FROM "NotificationView" nv
             WHERE nv."userId" = ${userId}

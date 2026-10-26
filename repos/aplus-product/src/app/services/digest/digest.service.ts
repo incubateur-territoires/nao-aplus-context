@@ -1,4 +1,5 @@
 import { PrismaClient, NotificationFrequency } from "@/generated/prisma/client";
+import { ROUTE } from "@/app/constant/route";
 import { sendTemplatedEmail } from "@/app/services/email/email.service";
 import {
   getEligibleUsersForDigest,
@@ -76,6 +77,7 @@ async function sendDigestEmail(
     to: [{ email: user.email, name: user.firstName }],
     params: {
       userFirstName: user.firstName,
+      linkUrl: `${process.env.NEXT_PUBLIC_APP_URL}${ROUTE.ALL_REPORTS}`,
       reportsText: formatReportsText(content.unviewedReportsCount),
       answersText: formatAnswersText(content.unviewedAnswersCount),
       statusText: formatStatusText(content.unviewedStatusChangesCount),

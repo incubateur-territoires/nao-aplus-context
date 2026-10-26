@@ -1,5 +1,4 @@
 import crypto from "node:crypto";
-import { SignJWT, jwtVerify } from "jose";
 
 /**
  * Hash a password-reset token before storing it in the Verification table.
@@ -15,46 +14,11 @@ export function hashResetToken(token: string): string {
   return crypto.createHash("sha256").update(token).digest("hex");
 }
 
-interface TokenPayload {
-  email: string;
-  firstName?: string | null;
-  lastName?: string | null;
-}
-
-function getSecret() {
-  const secret = process.env.TOKEN_SECRET;
-  if (!secret) {
-    throw new Error("TOKEN_SECRET environment variable is required");
-  }
-  return new TextEncoder().encode(secret);
-}
-
 /**
- * Creates a signed JWT verification token
+ * Jeton du lien d'invitation, retrouvé tel quel en base à l'inscription.
+ * Purement aléatoire (256 bits) : rien ne permet de le recalculer, ni les
+ * informations de la personne invitée, ni un secret d'environnement.
  */
-export async function createVerificationToken(
-  payload: TokenPayload,
-): Promise<string> {
-  return new SignJWT({ ...payload })
-    .setProtectedHeader({ alg: "HS256" })
-    .setIssuedAt()
-    .setExpirationTime("24h")
-    .sign(getSecret());
-}
-
-/**
- * Verifies and decodes a verification token
- * Returns the payload if valid, null if invalid/expired
- */
-export async function verifyToken(token: string): Promise<TokenPayload | null> {
-  try {
-    const { payload } = await jwtVerify(token, getSecret());
-    return {
-      email: payload.email as string,
-      firstName: payload.firstName as string | null | undefined,
-      lastName: payload.lastName as string | null | undefined,
-    };
-  } catch {
-    return null;
-  }
+export function createInvitationToken(): string {
+  return crypto.randomBytes(32).toString("base64url");
 }

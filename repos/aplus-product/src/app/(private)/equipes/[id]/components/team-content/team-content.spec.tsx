@@ -12,7 +12,7 @@ import { TeamContent } from "./team-content";
 import { useQuery, useSuspenseQuery, useMutation } from "@tanstack/react-query";
 import { useTRPC } from "@/trpc/client";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { MOCK_DATES, MOCK_IDS, USER_ROLES } from "@/test/mocks";
+import { MOCK_IDS, USER_ROLES } from "@/test/mocks";
 import { useSession } from "@/app/component/auth-provider/auth-provider";
 
 // useFocusOnVisible appelle scrollIntoView, non implémenté par jsdom
@@ -103,8 +103,6 @@ interface MockTeamUser {
   email: string;
   role: string;
   profession: string | null;
-  authoredReports: { id: string; createdAt: Date }[];
-  coAuthoredReports: { id: string; createdAt: Date }[];
 }
 
 interface MockTeam {
@@ -140,22 +138,6 @@ const mockTeam: MockTeam = {
       email: "john.doe@example.com",
       role: USER_ROLES.ADMIN,
       profession: "Developer",
-      authoredReports: [
-        {
-          id: MOCK_IDS.REPORT_1,
-          createdAt: MOCK_DATES.JAN_1_2024,
-        },
-        {
-          id: MOCK_IDS.REPORT_2,
-          createdAt: MOCK_DATES.JAN_2_2024,
-        },
-      ],
-      coAuthoredReports: [
-        {
-          id: MOCK_IDS.REPORT_3,
-          createdAt: MOCK_DATES.JAN_3_2024,
-        },
-      ],
     },
     {
       id: MOCK_IDS.USER_2,
@@ -164,8 +146,6 @@ const mockTeam: MockTeam = {
       email: "jane.smith@example.com",
       role: USER_ROLES.USER,
       profession: null,
-      authoredReports: [],
-      coAuthoredReports: [],
     },
   ],
 };
@@ -494,8 +474,6 @@ describe("TeamContent", () => {
       email: `member${i + 1}@example.com`,
       role: USER_ROLES.USER,
       profession: null,
-      authoredReports: [],
-      coAuthoredReports: [],
     }));
     mockTeamData = { ...mockTeam, users: manyUsers };
     setupSuspenseQueryMock();
@@ -547,8 +525,6 @@ describe("TeamContent", () => {
       email: `m${i}@example.com`,
       role: USER_ROLES.USER,
       profession: null,
-      authoredReports: [],
-      coAuthoredReports: [],
     }));
     mockTeamData = { ...mockTeam, users: tenUsers };
     setupSuspenseQueryMock();
@@ -712,8 +688,6 @@ describe("TeamContent", () => {
           email: "john.doe@example.com",
           role: USER_ROLES.ADMIN,
           profession: "Developer",
-          authoredReports: [],
-          coAuthoredReports: [],
         },
         {
           id: MOCK_IDS.USER_2,
@@ -722,8 +696,6 @@ describe("TeamContent", () => {
           email: "jane.smith@example.com",
           role: USER_ROLES.USER,
           profession: null,
-          authoredReports: [],
-          coAuthoredReports: [],
         },
       ],
     };
@@ -781,8 +753,6 @@ describe("TeamContent", () => {
           email: "john.doe@example.com",
           role: USER_ROLES.USER,
           profession: "Developer",
-          authoredReports: [],
-          coAuthoredReports: [],
         },
         {
           id: MOCK_IDS.USER_2,
@@ -791,8 +761,6 @@ describe("TeamContent", () => {
           email: "jane.smith@example.com",
           role: USER_ROLES.USER,
           profession: null,
-          authoredReports: [],
-          coAuthoredReports: [],
         },
         {
           id: "user-3",
@@ -801,8 +769,6 @@ describe("TeamContent", () => {
           email: "regular@example.com",
           role: USER_ROLES.USER,
           profession: null,
-          authoredReports: [],
-          coAuthoredReports: [],
         },
       ],
     };
@@ -859,8 +825,6 @@ describe("TeamContent", () => {
           email: "jane.smith@example.com",
           role: USER_ROLES.USER,
           profession: null,
-          authoredReports: [],
-          coAuthoredReports: [],
         },
       ],
     };
@@ -1021,8 +985,6 @@ describe("TeamContent", () => {
           email: "john.doe@example.com",
           role: USER_ROLES.ADMIN,
           profession: "Developer",
-          authoredReports: [],
-          coAuthoredReports: [],
         },
       ],
     };
@@ -1065,8 +1027,6 @@ describe("TeamContent", () => {
           email: "john.doe@example.com",
           role: USER_ROLES.ADMIN,
           profession: "Developer",
-          authoredReports: [],
-          coAuthoredReports: [],
         },
         {
           id: MOCK_IDS.USER_2,
@@ -1075,8 +1035,6 @@ describe("TeamContent", () => {
           email: "jane.smith@example.com",
           role: USER_ROLES.USER,
           profession: null,
-          authoredReports: [],
-          coAuthoredReports: [],
         },
       ],
     };
@@ -1220,8 +1178,6 @@ describe("TeamContent", () => {
           email: "john.doe@example.com",
           role: USER_ROLES.ADMIN,
           profession: "Developer",
-          authoredReports: [],
-          coAuthoredReports: [],
         },
       ],
     };

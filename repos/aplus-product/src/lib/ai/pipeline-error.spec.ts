@@ -1,5 +1,9 @@
 import { APICallError, RetryError } from "ai";
-import { classifyPipelineError, PIPELINE_ERROR_KINDS } from "./pipeline-error";
+import {
+  classifyPipelineError,
+  PIPELINE_ERROR_KINDS,
+  pipelineErrorStatusCode,
+} from "./pipeline-error";
 import { AlbertQuotaError } from "./providers";
 
 function apiError(statusCode?: number): APICallError {
@@ -84,5 +88,22 @@ describe("classifyPipelineError", () => {
     );
     expect(classifyPipelineError(new Error("bug"))).toBe(null);
     expect(classifyPipelineError("chaîne")).toBe(null);
+  });
+});
+
+describe("pipelineErrorStatusCode", () => {
+  it("lit le statut de la dernière tentative", () => {
+    const error = new RetryError({
+      message: "erreur non réessayable",
+      reason: "errorNotRetryable",
+      errors: [apiError(503), apiError(413)],
+    });
+    expect(pipelineErrorStatusCode(error)).toBe(413);
+  });
+
+  it("ne rend rien hors appel HTTP", () => {
+    expect(pipelineErrorStatusCode(new TypeError("fetch failed"))).toBe(
+      undefined,
+    );
   });
 });

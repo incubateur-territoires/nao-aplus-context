@@ -283,6 +283,26 @@ describe("ProfileContent", () => {
     });
   });
 
+  it("focuses the first invalid field on the first submit", async () => {
+    const user = userEvent.setup();
+    render(<ProfileContent />, { wrapper: createWrapper() });
+
+    await waitFor(() => {
+      expect(screen.getByDisplayValue("Doe")).toBeInTheDocument();
+    });
+
+    const lastNameInput = screen.getByLabelText("Nom");
+    await user.clear(lastNameInput);
+    await user.click(
+      screen.getByRole("button", { name: /Enregistrer les modifications/i }),
+    );
+
+    await waitFor(() => {
+      expect(lastNameInput).toHaveFocus();
+    });
+    expect(mockUpdateProfile).not.toHaveBeenCalled();
+  });
+
   it("submits form with valid data", async () => {
     const user = userEvent.setup();
     render(<ProfileContent />, { wrapper: createWrapper() });

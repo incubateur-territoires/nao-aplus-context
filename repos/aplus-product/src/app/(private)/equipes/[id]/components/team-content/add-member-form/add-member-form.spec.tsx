@@ -1,4 +1,5 @@
 import { render, screen, fireEvent } from "@testing-library/react";
+import { useMutation } from "@tanstack/react-query";
 import { AddMemberForm } from "./add-member-form";
 import React from "react";
 
@@ -92,8 +93,9 @@ jest.mock("@/trpc/client", () => ({
   useTRPC: () => ({
     team: {
       addUserToTeam: {
-        mutationOptions: jest.fn(() => ({
+        mutationOptions: jest.fn((options) => ({
           mutationKey: ["team", "addUserToTeam"],
+          ...options,
         })),
       },
       getTeamById: {
@@ -107,7 +109,7 @@ jest.mock("@/trpc/client", () => ({
 
 jest.mock("@tanstack/react-query", () => ({
   useMutation: jest.fn(() => ({
-    mutateAsync: jest.fn(),
+    mutate: jest.fn(),
     isPending: false,
   })),
   useQueryClient: jest.fn(() => ({
@@ -370,6 +372,28 @@ describe("AddMemberForm", () => {
     ).not.toBeInTheDocument();
     expect(
       screen.getByTestId("member-row-test2@example.com"),
+    ).toBeInTheDocument();
+  });
+
+  it("affiche l'erreur du serveur et laisse le formulaire utilisable", () => {
+    // Avec `mutateAsync`, l'echec remontait en rejet non intercepte et faisait
+    // tomber toute la page sur l'ecran Â« Reessayer Â», formulaire compris.
+    (useMutation as jest.Mock).mockImplementation((options) => ({
+      mutate: jest.fn(() => options?.onError?.(new Error("Erreur serveur"))),
+      isPending: false,
+    }));
+
+    render(<AddMemberForm teamId="test-team-id" />);
+
+    const input = screen.getByRole("textbox");
+    fireEvent.change(input, { target: { value: "new@example.com" } });
+    fireEvent.keyDown(input, { key: "Enter" });
+    fireEvent.click(screen.getByRole("button", { name: /Ajouter 1 membre/ }));
+
+    expect(screen.getByText("Erreur serveur")).toBeInTheDocument();
+    expect(screen.getByRole("textbox")).toBeInTheDocument();
+    expect(
+      screen.getByTestId("member-row-new@example.com"),
     ).toBeInTheDocument();
   });
 });

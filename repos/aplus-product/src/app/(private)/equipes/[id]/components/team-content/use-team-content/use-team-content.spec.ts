@@ -8,7 +8,7 @@ import {
 import { useTRPC } from "@/trpc/client";
 import { useSession } from "@/app/component/auth-provider/auth-provider";
 import { OrganizationRole } from "@/generated/prisma/enums";
-import { MOCK_IDS, MOCK_DATES, USER_ROLES } from "@/test/mocks";
+import { MOCK_IDS, USER_ROLES } from "@/test/mocks";
 import { TeamRole } from "@/types/team";
 
 jest.mock("@/trpc/client", () => ({
@@ -36,8 +36,6 @@ interface MockTeamUser {
   email: string;
   role: string;
   profession: string | null;
-  authoredReports: { id: string; createdAt: Date }[];
-  coAuthoredReports: { id: string; createdAt: Date }[];
 }
 
 interface MockTeam {
@@ -65,13 +63,6 @@ const mockTeam: MockTeam = {
       email: "john.doe@example.com",
       role: USER_ROLES.ADMIN,
       profession: "Developer",
-      authoredReports: [
-        { id: MOCK_IDS.REPORT_1, createdAt: MOCK_DATES.JAN_1_2024 },
-        { id: MOCK_IDS.REPORT_2, createdAt: MOCK_DATES.JAN_2_2024 },
-      ],
-      coAuthoredReports: [
-        { id: MOCK_IDS.REPORT_3, createdAt: MOCK_DATES.JAN_3_2024 },
-      ],
     },
     {
       id: MOCK_IDS.USER_2,
@@ -80,8 +71,6 @@ const mockTeam: MockTeam = {
       email: "jane.smith@example.com",
       role: USER_ROLES.USER,
       profession: null,
-      authoredReports: [],
-      coAuthoredReports: [],
     },
   ],
 };
@@ -297,24 +286,6 @@ describe("useTeamContent", () => {
     expect(janeMember.activityLabels).toEqual([]);
   });
 
-  it("calculates last activity date correctly", () => {
-    const { result } = renderHook(() =>
-      useTeamContent({ teamId: MOCK_IDS.TEAM_1 }),
-    );
-
-    const johnMember = result.current.members[0];
-    expect(johnMember.lastActivity).toEqual(MOCK_DATES.JAN_3_2024);
-  });
-
-  it("sets last activity to null for members without reports", () => {
-    const { result } = renderHook(() =>
-      useTeamContent({ teamId: MOCK_IDS.TEAM_1 }),
-    );
-
-    const janeMember = result.current.members[1];
-    expect(janeMember.lastActivity).toBeNull();
-  });
-
   it("sets roleLabel to ADMIN for admin users", () => {
     const { result } = renderHook(() =>
       useTeamContent({ teamId: MOCK_IDS.TEAM_1 }),
@@ -336,8 +307,6 @@ describe("useTeamContent", () => {
           email: "jane.smith@example.com",
           role: USER_ROLES.USER,
           profession: null,
-          authoredReports: [],
-          coAuthoredReports: [],
         },
       ],
     };
@@ -480,82 +449,5 @@ describe("useTeamContent", () => {
     );
 
     consoleErrorSpy.mockRestore();
-  });
-
-  it("handles member with only authored reports", () => {
-    const teamWithAuthorOnly = {
-      ...mockTeam,
-      users: [
-        {
-          id: MOCK_IDS.USER_1,
-          firstName: "John",
-          lastName: "Doe",
-          email: "john.doe@example.com",
-          role: USER_ROLES.USER,
-          profession: "Developer",
-          authoredReports: [
-            { id: MOCK_IDS.REPORT_1, createdAt: MOCK_DATES.JAN_1_2024 },
-          ],
-          coAuthoredReports: [],
-        },
-      ],
-    };
-
-    setupSuspenseQueryMock(teamWithAuthorOnly, {
-      [MOCK_IDS.USER_1]: {
-        signalements: 1,
-        sollicitations: 0,
-        participations: 0,
-      },
-    });
-
-    const { result } = renderHook(() =>
-      useTeamContent({ teamId: MOCK_IDS.TEAM_1 }),
-    );
-
-    expect(result.current.members[0].activityLabels).toContain("1 signalement");
-    expect(result.current.members[0].lastActivity).toEqual(
-      MOCK_DATES.JAN_1_2024,
-    );
-  });
-
-  it("handles member with only co-authored reports", () => {
-    const teamWithCoAuthorOnly = {
-      ...mockTeam,
-      users: [
-        {
-          id: MOCK_IDS.USER_1,
-          firstName: "John",
-          lastName: "Doe",
-          email: "john.doe@example.com",
-          role: USER_ROLES.USER,
-          profession: "Developer",
-          authoredReports: [],
-          coAuthoredReports: [
-            { id: MOCK_IDS.REPORT_1, createdAt: MOCK_DATES.JAN_2_2024 },
-            { id: MOCK_IDS.REPORT_2, createdAt: MOCK_DATES.JAN_1_2024 },
-          ],
-        },
-      ],
-    };
-
-    setupSuspenseQueryMock(teamWithCoAuthorOnly, {
-      [MOCK_IDS.USER_1]: {
-        signalements: 2,
-        sollicitations: 0,
-        participations: 0,
-      },
-    });
-
-    const { result } = renderHook(() =>
-      useTeamContent({ teamId: MOCK_IDS.TEAM_1 }),
-    );
-
-    expect(result.current.members[0].activityLabels).toContain(
-      "2 signalements",
-    );
-    expect(result.current.members[0].lastActivity).toEqual(
-      MOCK_DATES.JAN_2_2024,
-    );
   });
 });
